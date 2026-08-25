@@ -56,7 +56,8 @@ npm install
    - 推荐：硅基流动 `BAAI/bge-m3`
    - 想数据不出本机：本地 Ollama（网络白名单已包含 127.0.0.1）
 2. 若要使用图谱，同界面填写 LLM 配置
-   - 硅基流动可用 `deepseek-ai/DeepSeek-V3`
+   - 推荐：DeepSeek 官方 `deepseek-v4-flash`（Base URL 为 `https://api.deepseek.com/v1`，实测验证）
+   - 备选：硅基流动 `deepseek-ai/DeepSeek-V4-Flash`（与 embedding 同渠道同 key）
 3. 新建知识库 → 添加数据源（文件或文件夹）
 4. 文件 tab 查看入库状态，召回测试里试试你的问题
 5. 在 Hana 对话中直接说"搜一下 XX 库里的 XX"，Agent 会调用检索工具

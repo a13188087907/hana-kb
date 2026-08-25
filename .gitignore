@@ -1,0 +1,11 @@
+﻿node_modules/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.selftest-data/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
+.selftest-m2/
+.acceptance-test/

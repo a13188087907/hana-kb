@@ -1,0 +1,46 @@
+{
+  "manifestVersion": 1,
+  "id": "hana-kb",
+  "name": "Hana 知识库",
+  "version": "1.0.0",
+  "description": "本地 Markdown/txt 知识库：入库、向量/BM25 融合检索、可选图谱与来源定位。",
+  "minAppVersion": "0.171.3",
+  "trust": "full-access",
+  "capabilities": [
+    "network.fetch",
+    "resource.read",
+    "resource.materialize"
+  ],
+  "network": {
+    "allowedHosts": ["api.siliconflow.cn", "api.deepseek.com", "api.openai.com", "open.bigmodel.cn", "dashscope.aliyuncs.com", "127.0.0.1", "localhost"],
+    "methods": ["POST"],
+    "defaultTimeoutMs": 60000,
+    "maxResponseBytes": 10485760
+  },
+  "activationEvents": ["onStartup"],
+  "entry": "index.js",
+  "contributes": {
+    "tools": [
+      "./tools/kb-create.js",
+      "./tools/kb-ingest.js",
+      "./tools/kb-search.js",
+      "./tools/kb-list.js",
+      "./tools/kb-delete-doc.js",
+      "./tools/kb-graph-build.js",
+      "./tools/kb-graph-stats.js",
+      "./tools/kb-update-config.js",
+      "./tools/kb-delete-library.js",
+      "./tools/kb-doc-list.js",
+      "./tools/kb-graph-data.js",
+      "./tools/kb-rebuild-library.js"
+    ],
+    "page": {
+      "title": { "zh": "知识库", "en": "Knowledge Base" },
+      "route": "/webui",
+      "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z\"/><path d=\"M4 20.5A2.5 2.5 0 0 1 6.5 18H20\"/><path d=\"M9 8h7M9 11.5h5\"/></svg>"
+    }
+  },
+  "ui": {
+    "hostCapabilities": ["resource.pick"]
+  }
+}

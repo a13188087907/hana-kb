@@ -13,7 +13,7 @@ export const parameters = {
   },
   required: ["libraryId"],
 };
-export const sessionPermission = { kind: "plugin_output", describeSideEffect: () => ({ kind: "plugin_data_write", summary: "更新图谱开关并写入实体、关系和 chunk 倒排" }) };
+export const sessionPermission = { kind: "external_side_effect", describeSideEffect: () => ({ kind: "external_api", summary: "调用外部 LLM 服务抽取实体关系，写入图谱数据（消耗 API 额度）" }) };
 
 export async function execute(input) {
   const runtime = getRuntime();

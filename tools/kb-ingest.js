@@ -11,7 +11,7 @@ export const parameters = {
   },
   required: ["libraryId"],
 };
-export const sessionPermission = { kind: "plugin_output", describeSideEffect: () => ({ kind: "plugin_data_write", summary: "读取指定本地文件并写入知识库 SQLite" }) };
+export const sessionPermission = { kind: "external_side_effect", describeSideEffect: () => ({ kind: "external_api", summary: "读取指定本地文件，调用外部 embedding 服务，写入知识库 SQLite（消耗 API 额度）" }) };
 
 export async function execute(input) {
   const runtime = getRuntime();

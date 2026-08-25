@@ -11,6 +11,9 @@
     "resource.read",
     "resource.materialize"
   ],
+  "sensitiveCapabilities": [
+    "filesystem.read"
+  ],
   "network": {
     "allowedHosts": ["api.siliconflow.cn", "api.deepseek.com", "api.openai.com", "open.bigmodel.cn", "dashscope.aliyuncs.com", "127.0.0.1", "localhost"],
     "methods": ["POST"],

@@ -12,7 +12,7 @@ export const parameters = {
   },
   required: ["libraryId"],
 };
-export const sessionPermission = { kind: "plugin_output", describeSideEffect: () => ({ kind: "plugin_data_write", summary: "按当前参数重新生成知识库索引" }) };
+export const sessionPermission = { kind: "external_side_effect", describeSideEffect: () => ({ kind: "external_api", summary: "调用外部 embedding 服务重建索引，可选重建图谱（消耗 API 额度）" }) };
 
 export async function execute(input) {
   const libraryId = String(input?.libraryId ?? "").trim();

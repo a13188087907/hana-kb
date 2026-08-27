@@ -49,6 +49,8 @@ const state = {
   globalConfig: null,
   viewDoc: null,
   previewFile: null,
+  urlModal: false,
+  urlBusy: false,
 };
 
 function hanaFetch(route, init) {
@@ -190,7 +192,7 @@ function documentsView() {
   const allChecked = pagePaths.length > 0 && pagePaths.every((path) => state.selectedPaths.has(path));
   const rows = documents.length ? documents.map(fileRow).join("") : `<tr><td colspan="${graphOn ? 8 : 7}" class="empty-row">这个库还没有文件。点击右上角“添加数据源”开始。</td></tr>`;
   const legendContent = `<span class="legend-group"><span class="legend-label">向量</span>${legendDot("done", counts.done)}${legendDot("processing", counts.processing)}${legendDot("pending", counts.pending)}${legendDot("failed", counts.failed)}</span>${graphOn ? `<span class="legend-group"><span class="legend-label">图谱</span>${legendDot("done", g.done)}${legendDot("processing", g.processing)}${legendDot("pending", g.pending)}${legendDot("failed", g.failed)}</span>${graphProgressLine()}` : ""}`;
-  return `<section class="documents-view"><div class="legend-row">${legendContent}<div class="toolbar-actions add-source-actions"><button class="outline-button" data-action="refresh-documents">刷新</button><button class="primary-button" data-action="add-source">＋ 添加数据源</button></div></div>${state.selectedPaths.size ? `<div class="selection-bar"><span>已选择 <strong>${state.selectedPaths.size}</strong> 项</span><button class="danger-text" data-action="bulk-delete">批量删除</button><button class="plain-button" data-action="clear-selection">清除选择</button></div>` : ""}<div class="document-table-wrap"><table class="document-table"><thead><tr><th class="check-cell"><input id="select-all" type="checkbox" ${allChecked ? "checked" : ""} ${pagePaths.length ? "" : "disabled"} aria-label="全选当前页"></th><th class="name-cell">名称</th><th class="type-cell">类型</th><th class="dot-cell">向量</th>${graphOn ? "<th class=\"dot-cell\">图谱</th>" : ""}<th class="updated-cell">更新时间</th><th class="action-cell">操作</th></tr></thead><tbody>${rows}</tbody></table></div><div class="pagination"><span>第 ${state.documents?.page || 1} / ${state.documents?.pages || 1} 页 · 共 ${state.documents?.total || 0} 项</span><span><button class="plain-button" data-action="documents-page" data-page="${Math.max(1, (state.documentPage || 1) - 1)}" ${state.documentPage <= 1 ? "disabled" : ""}>上一页</button><button class="plain-button" data-action="documents-page" data-page="${Math.min(state.documents?.pages || 1, (state.documentPage || 1) + 1)}" ${state.documentPage >= (state.documents?.pages || 1) ? "disabled" : ""}>下一页</button></span></div></section>`;
+  return `<section class="documents-view"><div class="legend-row">${legendContent}<div class="toolbar-actions add-source-actions"><button class="outline-button" data-action="refresh-documents">刷新</button><button class="outline-button" data-action="open-url-modal">添加网页</button><button class="primary-button" data-action="add-source">＋ 添加数据源</button></div></div>${state.selectedPaths.size ? `<div class="selection-bar"><span>已选择 <strong>${state.selectedPaths.size}</strong> 项</span><button class="danger-text" data-action="bulk-delete">批量删除</button><button class="plain-button" data-action="clear-selection">清除选择</button></div>` : ""}<div class="document-table-wrap"><table class="document-table"><thead><tr><th class="check-cell"><input id="select-all" type="checkbox" ${allChecked ? "checked" : ""} ${pagePaths.length ? "" : "disabled"} aria-label="全选当前页"></th><th class="name-cell">名称</th><th class="type-cell">类型</th><th class="dot-cell">向量</th>${graphOn ? "<th class=\"dot-cell\">图谱</th>" : ""}<th class="updated-cell">更新时间</th><th class="action-cell">操作</th></tr></thead><tbody>${rows}</tbody></table></div><div class="pagination"><span>第 ${state.documents?.page || 1} / ${state.documents?.pages || 1} 页 · 共 ${state.documents?.total || 0} 项</span><span><button class="plain-button" data-action="documents-page" data-page="${Math.max(1, (state.documentPage || 1) - 1)}" ${state.documentPage <= 1 ? "disabled" : ""}>上一页</button><button class="plain-button" data-action="documents-page" data-page="${Math.min(state.documents?.pages || 1, (state.documentPage || 1) + 1)}" ${state.documentPage >= (state.documents?.pages || 1) ? "disabled" : ""}>下一页</button></span></div></section>`;
 }
 
 function graphMount() {
@@ -592,7 +594,7 @@ function renderGlobalSettingsModal() {
 function shellHtml() {
   const library = selectedLibrary();
   const main = library ? `${renderHeader()}${renderTabs()}${state.message ? `<div class="notice">${escapeHtml(state.message)}</div>` : ""}${state.view === "graph" ? graphView() : documentsView()}` : `<section class="blank-state"><p class="eyebrow">START HERE</p><h1>建立你的第一个知识库</h1><p>从左侧新建知识库，然后添加文件或目录。</p><button class="primary-button" data-action="open-create">新建知识库</button></section>`;
-  return `<div class="shell">${sidebarHtml()}<main class="workspace">${main}</main>${renderSearchDrawer()}${renderCreateModal()}${renderSettingsModal()}${renderGlobalSettingsModal()}${renderConfirmModal()}${renderPickerMenu()}${renderViewDocModal()}${renderPreviewModal()}</div>`;
+  return `<div class="shell">${sidebarHtml()}<main class="workspace">${main}</main>${renderSearchDrawer()}${renderCreateModal()}${renderSettingsModal()}${renderGlobalSettingsModal()}${renderConfirmModal()}${renderPickerMenu()}${renderViewDocModal()}${renderPreviewModal()}${renderUrlModal()}</div>`;
 }
 
 function renderViewDocModal() {
@@ -615,6 +617,11 @@ function renderPreviewModal() {
       ? `<p class="hint">${escapeHtml(p.error)}</p>`
       : `${p.warnings.length ? `<p class="hint">${escapeHtml(p.warnings.join("；"))}</p>` : ""}<pre class="doc-content">${escapeHtml(p.markdown || "（转换结果为空）")}</pre>${p.truncated ? `<p class="hint">内容过长，仅预览前 20000 字符</p>` : ""}`;
   return `<div class="modal-backdrop" data-action="preview-cancel"><section class="modal doc-modal" role="dialog" aria-modal="true"><div class="modal-header"><div><p class="eyebrow">CONVERT PREVIEW</p><h2>${escapeHtml(p.name)}</h2></div><button class="close-button" data-action="preview-cancel" aria-label="关闭">×</button></div>${body}<div class="modal-actions"><button class="outline-button" data-action="preview-cancel">取消</button>${!p.loading && !p.error && p.markdown ? `<button class="primary-button" data-action="preview-confirm">确认入库</button>` : ""}</div></section></div>`;
+}
+
+function renderUrlModal() {
+  if (!state.urlModal) return "";
+  return `<div class="modal-backdrop" data-action="close-url-modal"><section class="modal confirm-modal" role="dialog" aria-modal="true"><p class="confirm-text">添加网页到知识库</p><form id="add-url-form" class="modal-form"><label>网页链接<input name="url" type="url" placeholder="https://…" required></label><p class="hint">抓取正文转为 Markdown 入库，来源链接会记录在文档头部。适合公众号、博客、新闻等静态网页。</p><div class="modal-actions"><button class="outline-button" type="button" data-action="close-url-modal">取消</button><button class="primary-button" type="submit" ${state.urlBusy ? "disabled" : ""}>${state.urlBusy ? "抓取中…" : "抓取并入库"}</button></div></form></section></div>`;
 }
 
 function renderConfirmModal() {
@@ -1029,6 +1036,22 @@ function bindEvents() {
     const path = state.previewFile?.path;
     state.previewFile = null;
     if (path) await ingest(null, [path]);
+  });
+  app.querySelector('[data-action="open-url-modal"]')?.addEventListener("click", () => { state.urlModal = true; render(); });
+  app.querySelectorAll('[data-action="close-url-modal"]').forEach((el) => el.addEventListener("click", (event) => { if (event.target === event.currentTarget || el.tagName === "BUTTON") { state.urlModal = false; state.urlBusy = false; render(); } }));
+  app.querySelector('#add-url-form')?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const url = new FormData(event.currentTarget).get("url");
+    if (!url) return;
+    state.urlBusy = true;
+    render();
+    try {
+      const res = await request(`api/libraries/${encodeURIComponent(state.libraryId)}/add-url`, { method: "POST", body: JSON.stringify({ url }) });
+      state.urlModal = false;
+      setMessage(`已抓取《${res.title}》，入库中`);
+      await loadDocuments(state.documentPage);
+    } catch (error) { setMessage(friendlyError(error)); }
+    finally { state.urlBusy = false; render(); }
   });
   app.querySelectorAll('[data-action="delete-document"]').forEach((button) => button.addEventListener("click", () => deleteDocument(button.dataset.path)));
   app.querySelectorAll('[data-action="documents-page"]').forEach((button) => button.addEventListener("click", async () => { await loadDocuments(Number(button.dataset.page)); render(); }));

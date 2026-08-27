@@ -104,6 +104,24 @@ export default function registerWebuiRoutes(app, ctx) {
     }
   });
 
+  // 网页入库：同步抓取（成败即时反馈），落盘后后台 embedding
+  app.post("/api/libraries/:libraryId/add-url", async (c) => {
+    try {
+      const body = await readJson(c);
+      if (!body?.url) return c.json({ ok: false, error: "url is required" }, 400);
+      const runtime = getRuntime();
+      const libraryId = c.req.param("libraryId");
+      try { runtime.embeddingClient.config(); } catch (error) { return c.json({ ok: false, error: userFacingError(error) }, 400); }
+      const { filePath, title } = await runtime.ingest.fetchAndStoreUrl(libraryId, body.url);
+      const registered = runtime.ingest.registerMany(libraryId, [filePath], {});
+      const job = runtime.ingest.processMany(libraryId, [filePath], {});
+      void job.catch((error) => runtime.log?.error?.(`[hana-kb] url ingest failed: ${error.message}`));
+      return c.json({ ok: true, title, path: filePath, registered }, 202);
+    } catch (error) {
+      return c.json({ ok: false, error: userFacingError(error) }, 400);
+    }
+  });
+
   const ingestRoute = async (c) => {
     try {
       const body = await readJson(c);

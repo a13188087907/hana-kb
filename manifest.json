@@ -3,7 +3,7 @@
   "id": "hana-kb",
   "name": "Hana 知识库",
   "version": "1.1.0",
-  "description": "本地 Markdown/txt 知识库：入库、向量/BM25 融合检索、可选图谱与来源定位。",
+  "description": "本地知识库：文档与网页入库、向量/BM25 融合检索、可选图谱与来源定位。",
   "minAppVersion": "0.171.3",
   "trust": "full-access",
   "capabilities": [
@@ -16,7 +16,8 @@
   ],
   "network": {
     "allowedHosts": ["api.siliconflow.cn", "api.deepseek.com", "api.openai.com", "open.bigmodel.cn", "dashscope.aliyuncs.com", "127.0.0.1", "localhost"],
-    "methods": ["POST"],
+    "allowLocalhost": true,
+    "methods": ["GET", "POST"],
     "defaultTimeoutMs": 60000,
     "maxResponseBytes": 10485760
   },
@@ -35,7 +36,8 @@
       "./tools/kb-delete-library.js",
       "./tools/kb-doc-list.js",
       "./tools/kb-graph-data.js",
-      "./tools/kb-rebuild-library.js"
+      "./tools/kb-rebuild-library.js",
+      "./tools/kb-add-url.js"
     ],
     "page": {
       "title": { "zh": "知识库", "en": "Knowledge Base" },

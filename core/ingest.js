@@ -5,6 +5,7 @@ import { chunkText } from "./chunker.js";
 import { CONVERTIBLE_EXTS } from "./converter.js";
 import { getLibraryConfig, getLibraryFeatures } from "./db.js";
 import { parseFile } from "./parser.js";
+import { fetchUrlToMarkdown } from "./web-fetch.js";
 
 const SUPPORTED = new Set([".md", ".markdown", ".txt", ...CONVERTIBLE_EXTS]);
 
@@ -62,6 +63,26 @@ export class IngestService {
 
   async reingest(libraryId, inputPath) {
     return this.processMany(libraryId, [inputPath], { force: true });
+  }
+
+  // 网页抓取并落盘为 md 文件（frontmatter 记录来源 URL，供溯源与去重）。
+  // 同步返回抓取成败；后续入库走 registerMany/processMany 现有管道。
+  async fetchAndStoreUrl(libraryId, url) {
+    const { markdown, title, url: finalUrl } = await fetchUrlToMarkdown(url);
+    const dir = path.join(this.manager.dataDir, "web-pages", libraryId);
+    fs.mkdirSync(dir, { recursive: true });
+    const hash = crypto.createHash("sha256").update(finalUrl).digest("hex").slice(0, 8);
+    const slug = title.replace(/[\\/:*?"<>|\r\n]/g, "").replace(/\s+/g, " ").trim().slice(0, 40) || "page";
+    const filePath = path.join(dir, `${slug}-${hash}.md`);
+    fs.writeFileSync(filePath, markdown, "utf8");
+    return { filePath, title, url: finalUrl };
+  }
+
+  // 工具层一站式：抓取 → 落盘 → 入库（等待完成）
+  async ingestUrl(libraryId, url, options = {}) {
+    const { filePath, title, url: finalUrl } = await this.fetchAndStoreUrl(libraryId, url);
+    const results = await this.processMany(libraryId, [filePath], options);
+    return { title, url: finalUrl, ...results[0] };
   }
 
   async resume(libraryId) {

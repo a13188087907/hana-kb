@@ -41,7 +41,7 @@ const toolbarChildren = toolbar ? [...toolbar.children].map((el) => el.className
 const docViewChildren = [...doc.querySelector(".documents-view").children].map((el) => el.className);
 
 // 结构断言
-const toolbarOk = !!toolbar && toolbar.children.length === 2;const legendOk = !!doc.querySelector(".legend-row") && doc.querySelectorAll(".legend-row .legend-group").length >= 1;
+const toolbarOk = !!toolbar && toolbar.children.length === 3;const legendOk = !!doc.querySelector(".legend-row") && doc.querySelectorAll(".legend-row .legend-group").length >= 1;
 const viewOrderOk = JSON.stringify(docViewChildren) === JSON.stringify(["legend-row", "document-table-wrap", "pagination"]);
 const tableInsideView = !!doc.querySelector(".documents-view > .document-table-wrap");
 const paginationInsideView = !!doc.querySelector(".documents-view > .pagination");

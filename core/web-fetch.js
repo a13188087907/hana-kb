@@ -1,0 +1,119 @@
+// 网页抓取 → Markdown
+// 通道：route/工具层（主进程）原生 fetch —— Hana 权限模型管 SDK 接口不管代码沙盒，
+// allowedHosts 不支持全通配，任意网页抓取只能走这里（官方指南：动态业务数据放 route 层获取）。
+// Readability 是 Firefox 阅读模式同款算法，覆盖静态网页正文提取（公众号/博客/新闻/文档站）。
+// JS 重渲染页面（SPA）不在本层解决——检测到内容过短时给明确提示。
+import { Readability } from "@mozilla/readability";
+import { JSDOM } from "jsdom";
+import TurndownService from "turndown";
+
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+const MIN_CONTENT_CHARS = 200; // 低于此视为提取失败（多半是 JS 渲染页或反爬拦截）
+const CRAWL4AI_BASE = process.env.HANA_KB_CRAWL4AI_URL || "http://127.0.0.1:11235";
+
+const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
+
+export async function fetchUrlToMarkdown(url, { fetchImpl = globalThis.fetch, timeoutMs = 25000 } = {}) {
+  const target = String(url ?? "").trim();
+  let parsed;
+  try {
+    parsed = new URL(target);
+  } catch {
+    throw new Error("URL 格式不正确");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("只支持 http/https 链接");
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetchImpl(target, {
+      signal: controller.signal,
+      headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml" },
+      redirect: "follow",
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!response.ok) throw new Error(`网页请求失败（HTTP ${response.status}）`);
+
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+  if (contentType && !contentType.includes("html") && !contentType.includes("text/")) {
+    throw new Error(`该链接不是网页（${contentType.split(";")[0]}），文件类资源请直接入库`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  // JSDOM 接受 Buffer 时按 meta charset 嗅探编码，兼容 GBK 老站
+  const dom = new JSDOM(buffer, { url: target });
+  const doc = dom.window.document;
+  // 反爬/懒加载适配：公众号等会把正文容器设为 visibility:hidden 由页面 JS 解禁，
+  // Readability 会跳过不可见节点导致提取失败；抓取侧无 JS 执行，先剥离该隐藏属性。
+  doc.querySelectorAll('[style*="visibility"]').forEach((el) => { el.style.visibility = ""; });
+  // 懒加载图片：真实地址在 data-src，回填以便正文保留图片
+  doc.querySelectorAll("img[data-src]").forEach((img) => {
+    if (!img.getAttribute("src")) img.setAttribute("src", img.getAttribute("data-src"));
+  });
+  const article = new Readability(doc).parse();
+  if (!article || !article.textContent || article.textContent.trim().length < MIN_CONTENT_CHARS) {
+    // 静态提取失败（JS 渲染页/反爬，如公众号新版页面）→ 尝试本机 crawl4ai 服务
+    const viaCrawl4ai = await tryCrawl4ai(target, { fetchImpl, timeoutMs });
+    if (viaCrawl4ai) return viaCrawl4ai;
+    throw new Error("正文提取失败：该页面是 JS 动态渲染或触发了反爬（如新版公众号文章页）。可启动本机 crawl4ai 服务（docker，端口 11235）后自动升级抓取能力");
+  }
+
+  const title = String(article.title || parsed.hostname).trim();
+  const bodyMd = turndown.turndown(article.content);
+  const fetchedAt = new Date().toISOString();
+  const markdown = [
+    "---",
+    `source: ${target}`,
+    `fetched_at: ${fetchedAt}`,
+    "---",
+    "",
+    `# ${title}`,
+    "",
+    bodyMd.trim(),
+    "",
+  ].join("\n");
+  return { markdown, title, url: target, warnings: [] };
+}
+
+// 本机 crawl4ai 服务（docker 起在 11235）兜底：不可达时静默返回 null，由调用方报错
+async function tryCrawl4ai(url, { fetchImpl, timeoutMs }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchImpl(`${CRAWL4AI_BASE}/crawl`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urls: [url], priority: 10 }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const item = data?.results?.[0];
+    const mdField = item?.markdown;
+    const text = typeof mdField === "string" ? mdField : (mdField?.fit_markdown || mdField?.raw_markdown || "");
+    if (!text || text.trim().length < MIN_CONTENT_CHARS) return null;
+    const title = String(item?.metadata?.title || url).trim();
+    const markdown = [
+      "---",
+      `source: ${url}`,
+      `fetched_at: ${new Date().toISOString()}`,
+      "via: crawl4ai",
+      "---",
+      "",
+      `# ${title}`,
+      "",
+      text.trim(),
+      "",
+    ].join("\n");
+    return { markdown, title, url, warnings: [] };
+  } catch {
+    return null; // 服务未启动/超时/网络拒绝
+  } finally {
+    clearTimeout(timer);
+  }
+}

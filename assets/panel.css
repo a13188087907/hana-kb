@@ -121,7 +121,7 @@ h2{font-size:19px}
 .document-table th.dot-cell,.document-table td.dot-cell{width:40px;padding:9px 3px}
 .document-table th.dot-cell{white-space:nowrap}
 .document-table .updated-cell{width:140px}
-.document-table .action-cell{width:118px}
+.document-table .action-cell{width:172px}
 .document-row:hover{background:var(--paper)}
 .document-row.checked{background:var(--blue-pale)}
 .check-cell{padding-right:2px!important;padding-left:12px!important}

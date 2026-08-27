@@ -30,6 +30,8 @@ export function chunkText(parsed, options = {}) {
     const value = text.slice(unit.start, unit.end);
     if (value.length > config.target) {
       flush();
+      // 表格感知：续块前置表头行+分隔行，避免孤立数据行丢失列语义（实验证实：表头丢失后“次均单价”类查询无法命中孤立行）
+      if (tryPushTableChunks(chunks, text, unit, config)) continue;
       for (let offset = 0; offset < value.length; offset += config.hardStep) {
         const start = unit.start + offset;
         const end = Math.min(start + config.target, unit.end);
@@ -157,6 +159,48 @@ function makeUnit(text, start, end, headings) {
 function isTableLine(text) {
   const value = text.trim();
   return value.startsWith("|") && value.includes("|", 1);
+}
+
+const TABLE_SEPARATOR = /^\|[\s\-:|]+\|$/;
+
+// 表格 unit 超限时按行切：首块含表头+数据行，续块前置表头再续数据行。
+// 返回 false 表示不是标准 md 表格（回退硬滑窗）。
+// 续块 prepend 的表头是复制文本，不计入 offset——offset 仍指向该块数据行在原文中的区间（与 enrich 的 titlePath prepend 同一语义）。
+function tryPushTableChunks(chunks, text, unit, config) {
+  const value = text.slice(unit.start, unit.end);
+  const lines = [];
+  let offset = 0;
+  for (const line of value.split("\n")) {
+    if (line.trim()) lines.push({ text: line, start: unit.start + offset, end: unit.start + offset + line.length });
+    offset += line.length + 1;
+  }
+  if (lines.length < 3) return false;
+  if (!TABLE_SEPARATOR.test(lines[1].text.trim())) return false;
+  const headerText = `${lines[0].text.trim()}\n${lines[1].text.trim()}`;
+  const dataLines = lines.slice(2);
+  const headerCost = headerText.length + 1;
+
+  let block = [];
+  let blockLen = headerCost;
+  const flushBlock = () => {
+    if (!block.length) return;
+    chunks.push({
+      text: enrich(`${headerText}\n${block.map((l) => l.text.trim()).join("\n")}`, unit.titlePath),
+      titlePath: unit.titlePath,
+      startOffset: block[0].start,
+      endOffset: block[block.length - 1].end,
+      ordinal: chunks.length,
+    });
+    block = [];
+    blockLen = headerCost;
+  };
+  for (const line of dataLines) {
+    if (block.length && blockLen + line.text.length + 1 > config.target) flushBlock();
+    block.push(line);
+    blockLen += line.text.length + 1;
+  }
+  flushBlock();
+  return true;
 }
 
 function linesWithOffsets(text) {

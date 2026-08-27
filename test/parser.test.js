@@ -6,12 +6,12 @@ import { makeTempDir, removeDir } from "./helpers.js";
 import { parseFile } from "../core/parser.js";
 
 
-test("parses markdown as normalized UTF-8 text and removes BOM", () => {
+test("parses markdown as normalized UTF-8 text and removes BOM", async () => {
   const dir = makeTempDir();
   try {
     const file = path.join(dir, "note.md");
     fs.writeFileSync(file, Buffer.from("\ufeff# 标题\r\n\r\n正文", "utf8"));
-    const parsed = parseFile(file);
+    const parsed = await parseFile(file);
     assert.equal(parsed.format, "md");
     assert.equal(parsed.text, "# 标题\n\n正文");
   } finally {
@@ -19,7 +19,7 @@ test("parses markdown as normalized UTF-8 text and removes BOM", () => {
   }
 });
 
-test("decodes GBK txt into the normalized text", () => {
+test("decodes GBK txt into the normalized text", async () => {
   const dir = makeTempDir();
   try {
     const file = path.join(dir, "制度.txt");
@@ -28,7 +28,7 @@ test("decodes GBK txt into the normalized text", () => {
     fs.writeFileSync(file, Buffer.from("连续上班时长不得超过规定", "binary"));
     // GBK bytes are supplied explicitly so the test does not depend on the host locale.
     fs.writeFileSync(file, Buffer.from([0xC1, 0xAC, 0xD0, 0xF8, 0xC9, 0xCF, 0xB0, 0xE0, 0xCA, 0xB1, 0xB3, 0xA4, 0xB2, 0xBB, 0xB5, 0xC3, 0xB3, 0xAC, 0xB9, 0xFD, 0xB9, 0xE6, 0xB6, 0xA8]));
-    const parsed = parseFile(file);
+    const parsed = await parseFile(file);
     assert.equal(parsed.format, "txt");
     assert.equal(parsed.text, "连续上班时长不得超过规定");
     assert.notEqual(original.length, 0);
@@ -37,12 +37,12 @@ test("decodes GBK txt into the normalized text", () => {
   }
 });
 
-test("rejects unsupported file extensions", () => {
+test("rejects unsupported file extensions", async () => {
   const dir = makeTempDir();
   try {
     const file = path.join(dir, "note.pdf");
     fs.writeFileSync(file, "not supported");
-    assert.throws(() => parseFile(file), /unsupported file format/);
+    await assert.rejects(() => parseFile(file), /unsupported file format/);
   } finally {
     removeDir(dir);
   }

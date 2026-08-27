@@ -1,18 +1,22 @@
-﻿{
-    "name":  "hana-kb",
-    "version":  "1.0.0",
-    "private":  true,
-    "type":  "module",
-    "scripts":  {
-                    "test":  "node --test test/*.test.js \u0026\u0026 node test/rendercheck.mjs",
-                    "selftest":  "node scripts/selftest.mjs"
-                },
-    "dependencies":  {
-                         "better-sqlite3":  "^13.0.3",
-                         "iconv-lite":  "^0.6.3",
-                         "sqlite-vec":  "^0.1.9"
-                     },
-    "devDependencies":  {
-                            "jsdom":  "^29.1.1"
-                        }
+{
+    "name": "hana-kb",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "node --test test/*.test.js && node test/rendercheck.mjs",
+        "selftest": "node scripts/selftest.mjs"
+    },
+    "dependencies": {
+        "@firecrawl/anydoc": "^0.2.3",
+        "better-sqlite3": "^13.0.3",
+        "fast-xml-parser": "^5.11.0",
+        "iconv-lite": "^0.6.3",
+        "jszip": "^3.10.1",
+        "sqlite-vec": "^0.1.9",
+        "xlsx": "^0.18.5"
+    },
+    "devDependencies": {
+        "jsdom": "^29.1.1"
+    }
 }

@@ -2,10 +2,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chunkText } from "./chunker.js";
+import { CONVERTIBLE_EXTS } from "./converter.js";
 import { getLibraryConfig, getLibraryFeatures } from "./db.js";
 import { parseFile } from "./parser.js";
 
-const SUPPORTED = new Set([".md", ".txt"]);
+const SUPPORTED = new Set([".md", ".markdown", ".txt", ...CONVERTIBLE_EXTS]);
 
 export class IngestService {
   constructor({ manager, embeddingClient, graphBuilder, concurrency = 4, chunkOptions = {}, hooks = {} }) {
@@ -121,7 +122,10 @@ export class IngestService {
     db.prepare("UPDATE documents SET status='processing', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(row.id);
 
     try {
-      const parsed = parseFile(filePath);
+      const parsed = await parseFile(filePath);
+      if (!parsed.text.trim()) {
+        throw new Error(parsed.warnings?.[0] ?? "文件无正文内容");
+      }
       const libraryConfig = getLibraryConfig(db);
       const chunks = chunkText(parsed, {
         ...this.chunkOptions,

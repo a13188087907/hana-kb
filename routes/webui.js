@@ -75,6 +75,35 @@ export default function registerWebuiRoutes(app, ctx) {
     }
   });
 
+  app.get("/api/libraries/:libraryId/document-content", (c) => {
+    try {
+      const { path: filePath } = c.req.query();
+      if (!filePath) return c.json({ ok: false, error: "path is required" }, 400);
+      const db = getRuntime().manager.open(c.req.param("libraryId")).db;
+      const row = db.prepare("SELECT name, normalized_text, status FROM documents WHERE path=?").get(filePath);
+      if (!row) return c.json({ ok: false, error: "document not found" }, 404);
+      return c.json({ ok: true, name: row.name, content: row.normalized_text || "", status: row.status });
+    } catch (error) {
+      return c.json({ ok: false, error: error.message }, 400);
+    }
+  });
+
+  // 转换预览：不入库，只返回转换后的 markdown（截断防超爆）
+  app.post("/api/preview-convert", async (c) => {
+    try {
+      const body = await readJson(c);
+      if (!body?.path) return c.json({ ok: false, error: "path is required" }, 400);
+      const { convertToMarkdown, CONVERTIBLE_EXTS } = await import("../core/converter.js");
+      const ext = String(body.path).toLowerCase().match(/\.[^.\\/]*$/)?.[0] ?? "";
+      if (!CONVERTIBLE_EXTS.has(ext)) return c.json({ ok: false, error: `该格式（${ext || "未知"}）无需预览，md/txt 所见即所得` }, 400);
+      const { markdown, warnings } = await convertToMarkdown(body.path);
+      const truncated = markdown.length > 20000;
+      return c.json({ ok: true, markdown: truncated ? markdown.slice(0, 20000) : markdown, truncated, warnings });
+    } catch (error) {
+      return c.json({ ok: false, error: error.message }, 400);
+    }
+  });
+
   const ingestRoute = async (c) => {
     try {
       const body = await readJson(c);
@@ -82,7 +111,7 @@ export default function registerWebuiRoutes(app, ctx) {
       const runtime = getRuntime();
       if (!body?.resume && !Array.isArray(body?.paths)) return c.json({ ok: false, error: "paths or resume is required" }, 400);
       const files = body?.resume ? null : collectFiles(body.paths);
-      if (files && !files.length) return c.json({ ok: false, error: "未找到可入库的 Markdown/txt 文件" }, 400);
+      if (files && !files.length) return c.json({ ok: false, error: "未找到可入库的文件（支持 md/txt/docx/doc/xlsx/xls/pptx/ppt/epub/rtf/odt）" }, 400);
       try { runtime.embeddingClient.config(); } catch (error) { return c.json({ ok: false, error: userFacingError(error) }, 400); }
       let registered = null;
       if (files) registered = runtime.ingest.registerMany(libraryId, files, { force: Boolean(body.force) });

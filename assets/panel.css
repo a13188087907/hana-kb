@@ -191,6 +191,10 @@ td small{display:block;margin-top:3px;color:var(--muted);font-size:10.5px;line-h
 .modal-backdrop{display:grid;place-items:center;padding:20px}
 .modal{width:min(520px,100%);max-height:calc(100vh - 40px);overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--white)}
 .settings-modal{width:min(620px,100%)}
+.doc-modal{width:min(860px,100%)}
+.doc-content{margin:16px 20px 0;padding:14px 16px;max-height:55vh;overflow:auto;white-space:pre-wrap;word-break:break-word;background:var(--paper);border:1px solid var(--line-soft);border-radius:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.7;color:var(--ink)}
+.doc-modal .modal-actions{padding:14px 20px}
+.doc-modal .hint{margin:12px 20px 0}
 .confirm-modal{width:min(420px,100%);padding:20px}
 .confirm-text{font-size:13.5px;line-height:1.6;color:var(--ink)}
 .modal-header,.drawer-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:16px 20px;border-bottom:1px solid var(--line-soft)}

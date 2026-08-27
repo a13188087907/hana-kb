@@ -47,6 +47,8 @@ const state = {
   statusPoll: null,
   ingestBusy: false,
   globalConfig: null,
+  viewDoc: null,
+  previewFile: null,
 };
 
 function hanaFetch(route, init) {
@@ -164,7 +166,7 @@ function fileRow(item) {
   const checked = state.selectedPaths.has(item.path);
   const graphOn = Boolean(selectedLibrary()?.config?.graphEnabled);
   const vecExtra = item.error || (item.status === "processing" ? "入库中" : "");
-  return `<tr class="document-row ${checked ? "checked" : ""}"><td class="check-cell"><input type="checkbox" data-action="select-document" data-path="${escapeHtml(item.path)}" ${checked ? "checked" : ""} aria-label="选择 ${escapeHtml(item.name)}"></td><td><div class="file-name"><span class="file-icon file-${escapeHtml(String(item.name).split(".").pop()?.toLowerCase() || "generic")}">${escapeHtml(String(item.name).split(".").pop()?.toUpperCase().slice(0, 3) || "FILE")}</span><div><strong>${escapeHtml(item.name)}</strong><small class="path-text" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</small></div></div></td><td class="type-cell">${escapeHtml(fileTypeLabel(item.name))}</td><td class="dot-cell">${dotHtml(item.status, vecExtra)}</td>${graphOn ? `<td class="dot-cell">${dotHtml(item.graphStatus)}</td>` : ""}<td class="updated-cell">${escapeHtml(item.updatedAt || "—")}</td><td class="action-cell"><button data-action="reingest-document" data-path="${escapeHtml(item.path)}">重新入库</button><button class="danger-text" data-action="delete-document" data-path="${escapeHtml(item.path)}">删除</button></td></tr>`;
+  return `<tr class="document-row ${checked ? "checked" : ""}"><td class="check-cell"><input type="checkbox" data-action="select-document" data-path="${escapeHtml(item.path)}" ${checked ? "checked" : ""} aria-label="选择 ${escapeHtml(item.name)}"></td><td><div class="file-name"><span class="file-icon file-${escapeHtml(String(item.name).split(".").pop()?.toLowerCase() || "generic")}">${escapeHtml(String(item.name).split(".").pop()?.toUpperCase().slice(0, 3) || "FILE")}</span><div><strong>${escapeHtml(item.name)}</strong><small class="path-text" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</small></div></div></td><td class="type-cell">${escapeHtml(fileTypeLabel(item.name))}</td><td class="dot-cell">${dotHtml(item.status, vecExtra)}</td>${graphOn ? `<td class="dot-cell">${dotHtml(item.graphStatus)}</td>` : ""}<td class="updated-cell">${escapeHtml(item.updatedAt || "—")}</td><td class="action-cell"><button data-action="view-document" data-path="${escapeHtml(item.path)}">内容</button><button data-action="reingest-document" data-path="${escapeHtml(item.path)}">重新入库</button><button class="danger-text" data-action="delete-document" data-path="${escapeHtml(item.path)}">删除</button></td></tr>`;
 }
 
 function graphProgressLine() {
@@ -590,7 +592,29 @@ function renderGlobalSettingsModal() {
 function shellHtml() {
   const library = selectedLibrary();
   const main = library ? `${renderHeader()}${renderTabs()}${state.message ? `<div class="notice">${escapeHtml(state.message)}</div>` : ""}${state.view === "graph" ? graphView() : documentsView()}` : `<section class="blank-state"><p class="eyebrow">START HERE</p><h1>建立你的第一个知识库</h1><p>从左侧新建知识库，然后添加文件或目录。</p><button class="primary-button" data-action="open-create">新建知识库</button></section>`;
-  return `<div class="shell">${sidebarHtml()}<main class="workspace">${main}</main>${renderSearchDrawer()}${renderCreateModal()}${renderSettingsModal()}${renderGlobalSettingsModal()}${renderConfirmModal()}${renderPickerMenu()}</div>`;
+  return `<div class="shell">${sidebarHtml()}<main class="workspace">${main}</main>${renderSearchDrawer()}${renderCreateModal()}${renderSettingsModal()}${renderGlobalSettingsModal()}${renderConfirmModal()}${renderPickerMenu()}${renderViewDocModal()}${renderPreviewModal()}</div>`;
+}
+
+function renderViewDocModal() {
+  if (!state.viewDoc) return "";
+  const d = state.viewDoc;
+  const body = d.loading
+    ? `<p class="hint">正在读取内容…</p>`
+    : d.error
+      ? `<p class="hint">${escapeHtml(d.error)}</p>`
+      : `<pre class="doc-content">${escapeHtml(d.content || "（无内容）")}</pre>`;
+  return `<div class="modal-backdrop" data-action="close-view-doc"><section class="modal doc-modal" role="dialog" aria-modal="true"><div class="modal-header"><div><p class="eyebrow">DOCUMENT CONTENT</p><h2>${escapeHtml(d.name)}</h2></div><button class="close-button" data-action="close-view-doc" aria-label="关闭">×</button></div>${body}<div class="modal-actions"><button class="outline-button" data-action="close-view-doc">关闭</button></div></section></div>`;
+}
+
+function renderPreviewModal() {
+  if (!state.previewFile) return "";
+  const p = state.previewFile;
+  const body = p.loading
+    ? `<p class="hint">正在转换…</p>`
+    : p.error
+      ? `<p class="hint">${escapeHtml(p.error)}</p>`
+      : `${p.warnings.length ? `<p class="hint">${escapeHtml(p.warnings.join("；"))}</p>` : ""}<pre class="doc-content">${escapeHtml(p.markdown || "（转换结果为空）")}</pre>${p.truncated ? `<p class="hint">内容过长，仅预览前 20000 字符</p>` : ""}`;
+  return `<div class="modal-backdrop" data-action="preview-cancel"><section class="modal doc-modal" role="dialog" aria-modal="true"><div class="modal-header"><div><p class="eyebrow">CONVERT PREVIEW</p><h2>${escapeHtml(p.name)}</h2></div><button class="close-button" data-action="preview-cancel" aria-label="关闭">×</button></div>${body}<div class="modal-actions"><button class="outline-button" data-action="preview-cancel">取消</button>${!p.loading && !p.error && p.markdown ? `<button class="primary-button" data-action="preview-confirm">确认入库</button>` : ""}</div></section></div>`;
 }
 
 function renderConfirmModal() {
@@ -611,7 +635,7 @@ function ensurePickers() {
   fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.multiple = true;
-  fileInput.accept = ".md,.markdown,.txt,.MD,.TXT";
+  fileInput.accept = ".md,.markdown,.txt,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.epub,.rtf,.odt";
   fileInput.style.display = "none";
   document.body.appendChild(fileInput);
   fileInput.addEventListener("change", () => { const files = [...fileInput.files]; fileInput.value = ""; if (files.length) handlePickedFiles(files); });
@@ -620,11 +644,26 @@ function ensurePickers() {
   dirInput.setAttribute("webkitdirectory", "");
   dirInput.style.display = "none";
   document.body.appendChild(dirInput);
-  dirInput.addEventListener("change", () => { const files = [...dirInput.files].filter((f) => /\.(md|markdown|txt)$/i.test(f.name)); dirInput.value = ""; if (files.length) handlePickedFiles(files); });
+  dirInput.addEventListener("change", () => { const files = [...dirInput.files].filter((f) => /\.(md|markdown|txt|docx|doc|xlsx|xls|pptx|ppt|epub|rtf|odt)$/i.test(f.name)); dirInput.value = ""; if (files.length) handlePickedFiles(files); });
 }
+
+const CONVERTIBLE_RE = /\.(docx|doc|xlsx|xls|pptx|ppt|epub|rtf|odt)$/i;
 
 async function handlePickedFiles(files) {
   const paths = files.map((f) => f.path || "").filter((p) => p && (p.includes("\\") || p.includes("/")));
+  // 单个可转换格式文件（本地路径可用）→ 先弹转换预览，确认后再入库；批量与 md/txt 直接入
+  if (paths.length === files.length && files.length === 1 && CONVERTIBLE_RE.test(files[0].name)) {
+    state.previewFile = { path: paths[0], name: files[0].name, loading: true, markdown: "", warnings: [], truncated: false, error: "" };
+    render();
+    try {
+      const res = await request("api/preview-convert", { method: "POST", body: JSON.stringify({ path: paths[0] }) });
+      state.previewFile = { ...state.previewFile, loading: false, markdown: res.markdown || "", warnings: res.warnings || [], truncated: Boolean(res.truncated), error: "" };
+    } catch (error) {
+      state.previewFile = { ...state.previewFile, loading: false, error: friendlyError(error) };
+    }
+    render();
+    return;
+  }
   if (paths.length === files.length) {
     await ingest(null, paths);
     return;
@@ -972,6 +1011,25 @@ function bindEvents() {
   app.querySelector('[data-action="bulk-delete"]')?.addEventListener("click", bulkDelete);
   app.querySelector('[data-action="clear-selection"]')?.addEventListener("click", () => { state.selectedPaths.clear(); render(); });
   app.querySelectorAll('[data-action="reingest-document"]').forEach((button) => button.addEventListener("click", () => reingest(button.dataset.path)));
+  app.querySelectorAll('[data-action="view-document"]').forEach((button) => button.addEventListener("click", async () => {
+    const path = button.dataset.path;
+    state.viewDoc = { name: path.split(/[\\/]/).pop(), loading: true, content: "", error: "" };
+    render();
+    try {
+      const res = await request(`api/libraries/${encodeURIComponent(state.libraryId)}/document-content?path=${encodeURIComponent(path)}`);
+      state.viewDoc = { name: res.name, loading: false, content: res.content, error: "" };
+    } catch (error) {
+      state.viewDoc = { ...state.viewDoc, loading: false, error: friendlyError(error) };
+    }
+    render();
+  }));
+  app.querySelectorAll('[data-action="close-view-doc"]').forEach((el) => el.addEventListener("click", (event) => { if (event.target === event.currentTarget || el.classList.contains("close-button")) { state.viewDoc = null; render(); } }));
+  app.querySelectorAll('[data-action="preview-cancel"]').forEach((el) => el.addEventListener("click", (event) => { if (event.target === event.currentTarget || el.classList.contains("close-button")) { state.previewFile = null; render(); } }));
+  app.querySelector('[data-action="preview-confirm"]')?.addEventListener("click", async () => {
+    const path = state.previewFile?.path;
+    state.previewFile = null;
+    if (path) await ingest(null, [path]);
+  });
   app.querySelectorAll('[data-action="delete-document"]').forEach((button) => button.addEventListener("click", () => deleteDocument(button.dataset.path)));
   app.querySelectorAll('[data-action="documents-page"]').forEach((button) => button.addEventListener("click", async () => { await loadDocuments(Number(button.dataset.page)); render(); }));
   app.querySelector('#search-form')?.addEventListener("submit", search);

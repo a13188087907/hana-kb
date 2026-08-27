@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "hana-kb",
   "name": "Hana 知识库",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "本地 Markdown/txt 知识库：入库、向量/BM25 融合检索、可选图谱与来源定位。",
   "minAppVersion": "0.171.3",
   "trust": "full-access",

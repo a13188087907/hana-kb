@@ -57,10 +57,12 @@ export async function fetchUrlToMarkdown(url, { fetchImpl = globalThis.fetch, ti
   });
   const article = new Readability(doc).parse();
   if (!article || !article.textContent || article.textContent.trim().length < MIN_CONTENT_CHARS) {
-    // 静态提取失败（JS 渲染页/反爬，如公众号新版页面）→ 尝试本机 crawl4ai 服务
+    // 静态提取失败（JS 渲染页/反爬，如公众号新版页面）→ 依次尝试真浏览器降级
+    const viaBrowser = await tryPlaywright(target, { fetchImpl, timeoutMs });
+    if (viaBrowser) return viaBrowser;
     const viaCrawl4ai = await tryCrawl4ai(target, { fetchImpl, timeoutMs });
     if (viaCrawl4ai) return viaCrawl4ai;
-    throw new Error("正文提取失败：该页面是 JS 动态渲染或触发了反爬（如新版公众号文章页）。可启动本机 crawl4ai 服务（docker，端口 11235）后自动升级抓取能力");
+    throw new Error("正文提取失败：该页面是 JS 动态渲染或触发了反爬，且本机未检测到可用的 Chrome/Edge 或 crawl4ai 服务（端口 11235）");
   }
 
   const title = String(article.title || parsed.hostname).trim();
@@ -78,6 +80,60 @@ export async function fetchUrlToMarkdown(url, { fetchImpl = globalThis.fetch, ti
     "",
   ].join("\n");
   return { markdown, title, url: target, warnings: [] };
+}
+
+// playwright-core 驱动本机已装的 Chrome/Edge（不下载浏览器二进制），覆盖 JS 渲染页（公众号新版等）
+let playwrightModulePromise;
+async function tryPlaywright(url, { timeoutMs }) {
+  let chromium;
+  try {
+    playwrightModulePromise ??= import("playwright-core");
+    ({ chromium } = await playwrightModulePromise);
+  } catch {
+    return null;
+  }
+  let browser = null;
+  try {
+    for (const channel of ["chrome", "msedge"]) {
+      try {
+        browser = await chromium.launch({ channel, headless: true, timeout: 8000 });
+        break;
+      } catch { /* 试下一个渠道 */ }
+    }
+    if (!browser) return null;
+    const page = await browser.newPage({ userAgent: UA });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: Math.max(timeoutMs, 30000) });
+    await page.waitForSelector("#js_content", { timeout: 6000 }).catch(() => {}); // 公众号正文容器
+    await page.waitForTimeout(1800); // 等正文异步注入
+    const html = await page.content();
+    const dom2 = new JSDOM(html, { url });
+    const doc2 = dom2.window.document;
+    doc2.querySelectorAll('[style*="visibility"]').forEach((el) => { el.style.visibility = ""; });
+    doc2.querySelectorAll("img[data-src]").forEach((img) => {
+      if (!img.getAttribute("src")) img.setAttribute("src", img.getAttribute("data-src"));
+    });
+    const article = new Readability(doc2).parse();
+    if (!article || !article.textContent || article.textContent.trim().length < MIN_CONTENT_CHARS) return null;
+    const title = String(article.title || url).trim();
+    const bodyMd = turndown.turndown(article.content);
+    const markdown = [
+      "---",
+      `source: ${url}`,
+      `fetched_at: ${new Date().toISOString()}`,
+      "via: browser",
+      "---",
+      "",
+      `# ${title}`,
+      "",
+      bodyMd.trim(),
+      "",
+    ].join("\n");
+    return { markdown, title, url, warnings: [] };
+  } catch {
+    return null;
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
 }
 
 // 本机 crawl4ai 服务（docker 起在 11235）兜底：不可达时静默返回 null，由调用方报错

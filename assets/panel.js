@@ -192,7 +192,7 @@ function documentsView() {
   const allChecked = pagePaths.length > 0 && pagePaths.every((path) => state.selectedPaths.has(path));
   const rows = documents.length ? documents.map(fileRow).join("") : `<tr><td colspan="${graphOn ? 8 : 7}" class="empty-row">这个库还没有文件。点击右上角“添加数据源”开始。</td></tr>`;
   const legendContent = `<span class="legend-group"><span class="legend-label">向量</span>${legendDot("done", counts.done)}${legendDot("processing", counts.processing)}${legendDot("pending", counts.pending)}${legendDot("failed", counts.failed)}</span>${graphOn ? `<span class="legend-group"><span class="legend-label">图谱</span>${legendDot("done", g.done)}${legendDot("processing", g.processing)}${legendDot("pending", g.pending)}${legendDot("failed", g.failed)}</span>${graphProgressLine()}` : ""}`;
-  return `<section class="documents-view"><div class="legend-row">${legendContent}<div class="toolbar-actions add-source-actions"><button class="outline-button" data-action="refresh-documents">刷新</button><button class="outline-button" data-action="open-url-modal">添加网页</button><button class="primary-button" data-action="add-source">＋ 添加数据源</button></div></div>${state.selectedPaths.size ? `<div class="selection-bar"><span>已选择 <strong>${state.selectedPaths.size}</strong> 项</span><button class="danger-text" data-action="bulk-delete">批量删除</button><button class="plain-button" data-action="clear-selection">清除选择</button></div>` : ""}<div class="document-table-wrap"><table class="document-table"><thead><tr><th class="check-cell"><input id="select-all" type="checkbox" ${allChecked ? "checked" : ""} ${pagePaths.length ? "" : "disabled"} aria-label="全选当前页"></th><th class="name-cell">名称</th><th class="type-cell">类型</th><th class="dot-cell">向量</th>${graphOn ? "<th class=\"dot-cell\">图谱</th>" : ""}<th class="updated-cell">更新时间</th><th class="action-cell">操作</th></tr></thead><tbody>${rows}</tbody></table></div><div class="pagination"><span>第 ${state.documents?.page || 1} / ${state.documents?.pages || 1} 页 · 共 ${state.documents?.total || 0} 项</span><span><button class="plain-button" data-action="documents-page" data-page="${Math.max(1, (state.documentPage || 1) - 1)}" ${state.documentPage <= 1 ? "disabled" : ""}>上一页</button><button class="plain-button" data-action="documents-page" data-page="${Math.min(state.documents?.pages || 1, (state.documentPage || 1) + 1)}" ${state.documentPage >= (state.documents?.pages || 1) ? "disabled" : ""}>下一页</button></span></div></section>`;
+  return `<section class="documents-view"><div class="legend-row">${legendContent}<div class="toolbar-actions add-source-actions"><button class="outline-button" data-action="refresh-documents">刷新</button><button class="primary-button" data-action="add-source">＋ 添加数据源</button></div></div>${state.selectedPaths.size ? `<div class="selection-bar"><span>已选择 <strong>${state.selectedPaths.size}</strong> 项</span><button class="danger-text" data-action="bulk-delete">批量删除</button><button class="plain-button" data-action="clear-selection">清除选择</button></div>` : ""}<div class="document-table-wrap"><table class="document-table"><thead><tr><th class="check-cell"><input id="select-all" type="checkbox" ${allChecked ? "checked" : ""} ${pagePaths.length ? "" : "disabled"} aria-label="全选当前页"></th><th class="name-cell">名称</th><th class="type-cell">类型</th><th class="dot-cell">向量</th>${graphOn ? "<th class=\"dot-cell\">图谱</th>" : ""}<th class="updated-cell">更新时间</th><th class="action-cell">操作</th></tr></thead><tbody>${rows}</tbody></table></div><div class="pagination"><span>第 ${state.documents?.page || 1} / ${state.documents?.pages || 1} 页 · 共 ${state.documents?.total || 0} 项</span><span><button class="plain-button" data-action="documents-page" data-page="${Math.max(1, (state.documentPage || 1) - 1)}" ${state.documentPage <= 1 ? "disabled" : ""}>上一页</button><button class="plain-button" data-action="documents-page" data-page="${Math.min(state.documents?.pages || 1, (state.documentPage || 1) + 1)}" ${state.documentPage >= (state.documents?.pages || 1) ? "disabled" : ""}>下一页</button></span></div></section>`;
 }
 
 function graphMount() {
@@ -631,7 +631,7 @@ function renderConfirmModal() {
 
 function renderPickerMenu() {
   if (!state.pickerMenu) return "";
-  return `<div class="modal-backdrop" data-action="picker-cancel"><section class="modal confirm-modal" role="dialog" aria-modal="true"><p class="confirm-text">选择数据源类型</p><div class="modal-actions"><button class="outline-button" data-action="picker-file">选择文件（可多选）</button><button class="outline-button" data-action="picker-directory">选择文件夹</button></div></section></div>`;
+  return `<div class="modal-backdrop" data-action="picker-cancel"><section class="modal source-modal" role="dialog" aria-modal="true"><div class="modal-header"><div><p class="eyebrow">ADD SOURCE</p><h2>选择数据源类型</h2></div><button class="close-button" data-action="picker-cancel" aria-label="关闭">×</button></div><div class="source-options"><button class="source-option" data-action="picker-file"><strong>选择文件</strong><small>可多选。支持 md · txt · docx · doc · xlsx · xls · pptx · ppt · epub · rtf · odt</small></button><button class="source-option" data-action="picker-directory"><strong>选择文件夹</strong><small>整个文件夹批量入库，格式同上</small></button><button class="source-option" data-action="picker-url"><strong>添加网页</strong><small>粘贴链接，抓取正文入库。支持公众号、博客、新闻、文档站等</small></button></div></section></div>`;
 }
 
 let fileInput = null;
@@ -1002,9 +1002,10 @@ function bindEvents() {
     state.pickerMenu = true;
     render();
   });
-  app.querySelectorAll('[data-action="picker-cancel"]')?.forEach((el) => el.addEventListener("click", (event) => { if (event.target === event.currentTarget) { state.pickerMenu = false; render(); } }));
+  app.querySelectorAll('[data-action="picker-cancel"]').forEach((el) => el.addEventListener("click", (event) => { if (event.target === event.currentTarget || el.classList.contains("close-button")) { state.pickerMenu = false; render(); } }));
   app.querySelector('[data-action="picker-file"]')?.addEventListener("click", () => { state.pickerMenu = false; ensurePickers(); fileInput.click(); });
   app.querySelector('[data-action="picker-directory"]')?.addEventListener("click", () => { state.pickerMenu = false; ensurePickers(); dirInput.click(); });
+  app.querySelector('[data-action="picker-url"]')?.addEventListener("click", () => { state.pickerMenu = false; state.urlModal = true; render(); });
   app.querySelector('[data-action="confirm-ok"]')?.addEventListener("click", async () => { const action = state.confirm?.action; state.confirm = null; if (action) await action(); else render(); });
   app.querySelector('[data-action="confirm-cancel"]')?.addEventListener("click", () => { state.confirm = null; render(); });
   app.querySelector('#create-library')?.addEventListener("submit", createLibrary);
@@ -1037,7 +1038,6 @@ function bindEvents() {
     state.previewFile = null;
     if (path) await ingest(null, [path]);
   });
-  app.querySelector('[data-action="open-url-modal"]')?.addEventListener("click", () => { state.urlModal = true; render(); });
   app.querySelectorAll('[data-action="close-url-modal"]').forEach((el) => el.addEventListener("click", (event) => { if (event.target === event.currentTarget || el.tagName === "BUTTON") { state.urlModal = false; state.urlBusy = false; render(); } }));
   app.querySelector('#add-url-form')?.addEventListener("submit", async (event) => {
     event.preventDefault();

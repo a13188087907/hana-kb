@@ -1,4 +1,26 @@
 ﻿import { getLlmConfig } from "./config.js";
+import Graph from "graphology";
+import louvain from "graphology-communities-louvain";
+
+// Louvain 社区检测：输入节点与去重边，返回 Map<nodeId, communityIndex>
+function detectCommunities(nodes, edges) {
+  const result = new Map();
+  if (!nodes.length) return result;
+  try {
+    const g = new Graph({ type: "undirected", multi: false });
+    for (const n of nodes) g.addNode(String(n.id));
+    for (const e of edges) {
+      const s = String(e.source), t = String(e.target);
+      if (s !== t && g.hasNode(s) && g.hasNode(t) && !g.hasEdge(s, t)) g.addEdge(s, t, { weight: Number(e.weight) || 1 });
+    }
+    const assign = louvain(g, { getEdgeWeight: "weight" });
+    for (const n of nodes) {
+      const c = assign[String(n.id)];
+      result.set(n.id, Number.isFinite(c) ? c : 0);
+    }
+  } catch { /* 社区检测失败不阻塞图谱返回 */ }
+  return result;
+}
 
 const DEFAULT_LLM_MODEL = "deepseek-ai/DeepSeek-V3";
 const GRAPH_SEARCH_LIMIT = 20;
@@ -64,17 +86,19 @@ export class GraphBuildService {
     `).all(MAX_NODES).map((row) => ({ id: row.id, name: row.name, type: row.type, degree: Number(row.degree) }));
     const nodeIds = new Set(nodes.map((n) => n.id));
     const edges = db.prepare(`
-      SELECT source, target FROM (
+      SELECT source, target, COUNT(*) AS weight FROM (
         SELECT CASE WHEN source_entity_id < target_entity_id THEN source_entity_id ELSE target_entity_id END AS source,
                CASE WHEN source_entity_id < target_entity_id THEN target_entity_id ELSE source_entity_id END AS target
         FROM relations
       )
       GROUP BY source, target
-      ORDER BY source, target
+      ORDER BY weight DESC, source, target
       LIMIT ?
     `).all(MAX_EDGES)
-      .map((row) => ({ source: row.source, target: row.target }))
+      .map((row) => ({ source: row.source, target: row.target, weight: Number(row.weight) || 1 }))
       .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+    const communities = detectCommunities(nodes, edges);
+    for (const n of nodes) n.community = communities.get(n.id) ?? 0;
     const truncated = nodes.length >= MAX_NODES || edges.length >= MAX_EDGES;
     return { mode: "full", center: null, nodes, edges, chunkSummaries: [], truncated };
   }

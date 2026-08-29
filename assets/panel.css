@@ -158,6 +158,10 @@ td small{display:block;margin-top:3px;color:var(--muted);font-size:10.5px;line-h
 .graph-stat strong{font-family:var(--mono);font-weight:600;color:var(--ink);margin-right:2px}
 .graph-search{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end}
 .full-graph-canvas{display:block;width:100%;height:560px}
+.graph-canvas-wrap{position:relative}
+.graph-zoom-controls{position:absolute;right:12px;bottom:12px;display:flex;gap:6px}
+.graph-zoom-btn{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--ink);font-size:15px;cursor:pointer;line-height:1;display:grid;place-items:center;padding:0}
+.graph-zoom-btn:hover{border-color:var(--blue);color:var(--blue)}
 .graph-stage{min-height:460px;margin-top:12px;border:1px solid var(--line);border-radius:6px;background:var(--white)}
 .graph-empty{display:grid;place-items:center;min-height:420px;color:var(--muted);font-size:12.5px}
 .candidate-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}

@@ -195,8 +195,11 @@ function documentsView() {
   return `<section class="documents-view"><div class="legend-row">${legendContent}<div class="toolbar-actions add-source-actions"><button class="outline-button" data-action="refresh-documents">刷新</button><button class="primary-button" data-action="add-source">＋ 添加数据源</button></div></div>${state.selectedPaths.size ? `<div class="selection-bar"><span>已选择 <strong>${state.selectedPaths.size}</strong> 项</span><button class="danger-text" data-action="bulk-delete">批量删除</button><button class="plain-button" data-action="clear-selection">清除选择</button></div>` : ""}<div class="document-table-wrap"><table class="document-table"><thead><tr><th class="check-cell"><input id="select-all" type="checkbox" ${allChecked ? "checked" : ""} ${pagePaths.length ? "" : "disabled"} aria-label="全选当前页"></th><th class="name-cell">名称</th><th class="type-cell">类型</th><th class="dot-cell">向量</th>${graphOn ? "<th class=\"dot-cell\">图谱</th>" : ""}<th class="updated-cell">更新时间</th><th class="action-cell">操作</th></tr></thead><tbody>${rows}</tbody></table></div><div class="pagination"><span>第 ${state.documents?.page || 1} / ${state.documents?.pages || 1} 页 · 共 ${state.documents?.total || 0} 项</span><span><button class="plain-button" data-action="documents-page" data-page="${Math.max(1, (state.documentPage || 1) - 1)}" ${state.documentPage <= 1 ? "disabled" : ""}>上一页</button><button class="plain-button" data-action="documents-page" data-page="${Math.min(state.documents?.pages || 1, (state.documentPage || 1) + 1)}" ${state.documentPage >= (state.documents?.pages || 1) ? "disabled" : ""}>下一页</button></span></div></section>`;
 }
 
+const COMMUNITY_COLORS = ["#4A7A94", "#9D5F4D", "#7A8B6F", "#8A7A99", "#B8956A", "#6B8E8B", "#A66A6A", "#7A94A8"];
+const graphPositionCache = new Map(); // 会话内节点位置缓存：key = libraryId:mode:center
+
 function graphMount() {
-  return `<canvas class="full-graph-canvas" aria-label="图谱视图"></canvas>`;
+  return `<div class="graph-canvas-wrap"><canvas class="full-graph-canvas" aria-label="图谱视图"></canvas><div class="graph-zoom-controls"><button class="graph-zoom-btn" data-action="graph-zoom-in" aria-label="放大">+</button><button class="graph-zoom-btn" data-action="graph-zoom-out" aria-label="缩小">−</button><button class="graph-zoom-btn" data-action="graph-zoom-fit" aria-label="适配视图">⛶</button></div></div>`;
 }
 
 let graphEngine = null;
@@ -210,12 +213,14 @@ function initGraphEngine() {
   const centerId = state.graphMode === "local" ? state.graph?.center?.id : null;
   graphEngine = createForceGraphEngine(canvas, data, {
     centerId,
+    cacheKey: `${state.libraryId}:${state.graphMode}:${centerId ?? "full"}`,
     onNodeClick: (id) => { loadGraphEntity(String(id)); },
   });
 }
 
 function createForceGraphEngine(canvas, data, handlers) {
   const centerId = handlers?.centerId ?? null;
+  const cacheKey = handlers?.cacheKey || null;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const resize = () => {
     const w = Math.max(320, canvas.parentElement?.getBoundingClientRect().width || 800);
@@ -225,16 +230,18 @@ function createForceGraphEngine(canvas, data, handlers) {
   };
   resize();
   const ctx = canvas.getContext("2d");
-  if (!ctx) return { destroy() {} };
+  if (!ctx) return { destroy() {}, zoom() {}, fit() {} };
 
+  const cachedPositions = cacheKey ? graphPositionCache.get(cacheKey) : null;
   const nodes = (data.nodes || []).map((n) => ({
     id: n.id, name: n.name, degree: Number(n.degree) || 1,
+    community: Number.isFinite(n.community) ? n.community : 0,
     x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null,
   }));
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const links = (data.edges || []).map((e) => {
     const s = nodeById.get(e.source), t = nodeById.get(e.target);
-    return s && t ? { source: s, target: t } : null;
+    return s && t ? { source: s, target: t, weight: Number(e.weight) || 1 } : null;
   }).filter(Boolean);
   const neighborsOf = new Map(nodes.map((n) => [n.id, new Set()]));
   for (const l of links) { neighborsOf.get(l.source.id).add(l.target.id); neighborsOf.get(l.target.id).add(l.source.id); }
@@ -249,9 +256,19 @@ function createForceGraphEngine(canvas, data, handlers) {
     n.x = Math.cos(angle) * radius;
     n.y = Math.sin(angle) * radius;
   });
+  // 位置缓存恢复：命中则跳过力导模拟直接呈现
+  let alpha = 1;
+  if (cachedPositions) {
+    let hit = 0;
+    for (const n of nodes) {
+      const p = cachedPositions.get(String(n.id));
+      if (p) { n.x = p.x; n.y = p.y; hit += 1; }
+    }
+    if (hit >= nodes.length * 0.8) alpha = 0.06;
+  }
 
   const view = { x: 0, y: 0, k: 1 };
-  let alpha = 1, alphaMin = 0.05;
+  let alphaMin = 0.05;
   const cell = 60;
   const REPULSE_DIST = 70;
   let grid = new Map();
@@ -316,6 +333,8 @@ function createForceGraphEngine(canvas, data, handlers) {
   }
 
   let hoverNode = null;
+  const maxEdgeWeight = Math.max(1, ...links.map((l) => l.weight));
+  const edgeNorm = (w) => Math.log2(w + 1) / Math.log2(maxEdgeWeight + 1);
   function draw() {
     const w = canvas.width / dpr, h = canvas.height / dpr;
     // 每帧重置变换：canvas.width 赋值会清空 transform，不能依赖初始 scale
@@ -325,25 +344,25 @@ function createForceGraphEngine(canvas, data, handlers) {
     ctx.translate(w / 2 + view.x, h / 2 + view.y);
     ctx.scale(view.k, view.k);
     const hoverId = hoverNode ? hoverNode.id : null;
-    ctx.lineWidth = 0.55 / view.k;
-    // 批量绘制连线：分组一次 stroke
-    const dimLines = [], litLines = [];
+    // 批量绘制连线：按悬停可见性 × 权重档位分桶，每桶一次 stroke
+    const dimLines = [], weakLines = [], midLines = [], strongLines = [];
     for (const l of links) {
-      if (hoverId != null && l.source.id !== hoverId && l.target.id !== hoverId) dimLines.push(l);
-      else litLines.push(l);
+      if (hoverId != null && l.source.id !== hoverId && l.target.id !== hoverId) { dimLines.push(l); continue; }
+      const norm = edgeNorm(l.weight);
+      (norm < 0.34 ? weakLines : norm < 0.67 ? midLines : strongLines).push(l);
     }
-    if (dimLines.length) {
-      ctx.strokeStyle = "rgba(74,122,148,0.07)";
+    const strokeBucket = (list, width, alphaScale) => {
+      if (!list.length) return;
+      ctx.strokeStyle = `rgba(74,122,148,${alphaScale})`;
+      ctx.lineWidth = width / view.k;
       ctx.beginPath();
-      for (const l of dimLines) { ctx.moveTo(l.source.x, l.source.y); ctx.lineTo(l.target.x, l.target.y); }
+      for (const l of list) { ctx.moveTo(l.source.x, l.source.y); ctx.lineTo(l.target.x, l.target.y); }
       ctx.stroke();
-    }
-    if (litLines.length) {
-      ctx.strokeStyle = "rgba(74,122,148,0.45)";
-      ctx.beginPath();
-      for (const l of litLines) { ctx.moveTo(l.source.x, l.source.y); ctx.lineTo(l.target.x, l.target.y); }
-      ctx.stroke();
-    }
+    };
+    strokeBucket(dimLines, 0.55, 0.07);
+    strokeBucket(weakLines, 0.55, 0.22);
+    strokeBucket(midLines, 1.1, 0.38);
+    strokeBucket(strongLines, 1.9, 0.55);
     // 批量绘制节点：三组（淡出/正常/悬停）各一次 fill
     const dimNodes = [], normalNodes = [], hotNodes = [];
     for (const n of nodes) {
@@ -363,8 +382,30 @@ function createForceGraphEngine(canvas, data, handlers) {
       }
       ctx.fill();
     };
-    paintNodes(dimNodes, "rgba(74,122,148,0.16)");
-    paintNodes(normalNodes, "#4A7A94");
+    // 社区着色：按颜色分桶批量填充，保持每色一次 path
+    const paintCommunity = (list, alphaScale) => {
+      if (!list.length) return;
+      const buckets = new Map();
+      for (const n of list) {
+        const color = COMMUNITY_COLORS[n.community % COMMUNITY_COLORS.length];
+        const arr = buckets.get(color);
+        if (arr) arr.push(n); else buckets.set(color, [n]);
+      }
+      ctx.globalAlpha = alphaScale;
+      for (const [color, arr] of buckets) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        for (const n of arr) {
+          const r = nodeRadius(n.degree) / Math.min(view.k, 1.7);
+          ctx.moveTo(n.x + r, n.y);
+          ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    };
+    paintCommunity(dimNodes, 0.16);
+    paintCommunity(normalNodes, 1);
     paintNodes(hotNodes, "#9D5F4D");
     // 局部视图：中心节点用印章色描边突出
     if (centerId != null) {
@@ -493,11 +534,22 @@ function createForceGraphEngine(canvas, data, handlers) {
   const observer = new ResizeObserver(() => { resize(); draw(); });
   if (canvas.parentElement) observer.observe(canvas.parentElement);
 
+  const zoomBy = (factor) => {
+    view.k = Math.min(4, Math.max(0.1, view.k * factor));
+    draw();
+  };
+
   return {
+    zoomIn: () => zoomBy(1.3),
+    zoomOut: () => zoomBy(1 / 1.3),
+    fit: () => { fitView(); draw(); },
     destroy() {
       if (raf) { cancelAnimationFrame(raf); clearTimeout(raf); }
       raf = null;
       observer.disconnect();
+      if (cacheKey) {
+        graphPositionCache.set(cacheKey, new Map(nodes.map((n) => [String(n.id), { x: n.x, y: n.y }])));
+      }
       canvas.replaceWith(canvas.cloneNode());
     },
   };
@@ -1002,6 +1054,9 @@ function bindEvents() {
     state.pickerMenu = true;
     render();
   });
+  app.querySelectorAll('[data-action="graph-zoom-in"]').forEach((el) => el.addEventListener("click", () => graphEngine?.zoomIn()));
+  app.querySelectorAll('[data-action="graph-zoom-out"]').forEach((el) => el.addEventListener("click", () => graphEngine?.zoomOut()));
+  app.querySelectorAll('[data-action="graph-zoom-fit"]').forEach((el) => el.addEventListener("click", () => graphEngine?.fit()));
   app.querySelectorAll('[data-action="picker-cancel"]').forEach((el) => el.addEventListener("click", (event) => { if (event.target === event.currentTarget || el.classList.contains("close-button")) { state.pickerMenu = false; render(); } }));
   app.querySelector('[data-action="picker-file"]')?.addEventListener("click", () => { state.pickerMenu = false; ensurePickers(); fileInput.click(); });
   app.querySelector('[data-action="picker-directory"]')?.addEventListener("click", () => { state.pickerMenu = false; ensurePickers(); dirInput.click(); });

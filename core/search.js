@@ -26,7 +26,8 @@ function mmrDiverse(rows, K, alpha = MMR_ALPHA, triggerShare = MMR_TRIGGER_SHARE
       const row = pool[i];
       const sim = 1 - (row.distance ?? 0);
       const dup = counts.get(row.documentId) || 0;
-      const score = sim / (1 + alpha * dup);
+      // 同文档前两块免折扣：对比型查询需要同文档的多个语义单元同时召回（实测 c01 类查询被折扣压制）
+      const score = sim / (1 + alpha * Math.max(0, dup - 1));
       if (score > bestScore) { bestScore = score; bestIdx = i; }
     }
     const picked = pool[bestIdx];

@@ -112,6 +112,7 @@ export function getLibraryConfig(db) {
     similarityThreshold: normalizeNumber(search.similarityThreshold, DEFAULT_LIBRARY_CONFIG.similarityThreshold, -1, 1),
     chunkTargetLength,
     chunkOverlap: normalizeInteger(chunking.chunkOverlap, Math.min(DEFAULT_LIBRARY_CONFIG.chunkOverlap, chunkTargetLength - 1), 0, chunkTargetLength - 1),
+    chunkingCustomized: Object.keys(chunking).length > 0, // 用户是否显式配置过分块（默认走 chunker 内置喘息空间）
     ...features,
   };
 }

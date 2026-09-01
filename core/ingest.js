@@ -68,8 +68,11 @@ export class IngestService {
   // 网页抓取并落盘为 md 文件（frontmatter 记录来源 URL，供溯源与去重）。
   // 同步返回抓取成败；后续入库走 registerMany/processMany 现有管道。
   async fetchAndStoreUrl(libraryId, url) {
+    // libraryId 经 manager 清理（safeLibraryId），防 URL 参数路径遍历
+    const handle = this.manager.open(libraryId);
+    const safeId = handle.libraryId;
     const { markdown, title, url: finalUrl } = await fetchUrlToMarkdown(url);
-    const dir = path.join(this.manager.dataDir, "web-pages", libraryId);
+    const dir = path.join(this.manager.dataDir, "web-pages", safeId);
     fs.mkdirSync(dir, { recursive: true });
     const hash = crypto.createHash("sha256").update(finalUrl).digest("hex").slice(0, 8);
     const slug = title.replace(/[\\/:*?"<>|\r\n]/g, "").replace(/\s+/g, " ").trim().slice(0, 40) || "page";
@@ -148,11 +151,11 @@ export class IngestService {
         throw new Error(parsed.warnings?.[0] ?? "文件无正文内容");
       }
       const libraryConfig = getLibraryConfig(db);
-      const chunks = chunkText(parsed, {
-        ...this.chunkOptions,
-        target: libraryConfig.chunkTargetLength,
-        hardStep: Math.max(1, libraryConfig.chunkTargetLength - libraryConfig.chunkOverlap),
-      });
+      // 仅在用户显式配置分块参数时覆盖 chunker 默认（默认 target=400/max=640 给条款完整性留喘息，实测 c01 证据 2/4→4/4）
+      const chunkOpts = libraryConfig.chunkingCustomized
+        ? { ...this.chunkOptions, target: libraryConfig.chunkTargetLength, hardStep: Math.max(1, libraryConfig.chunkTargetLength - libraryConfig.chunkOverlap) }
+        : this.chunkOptions;
+      const chunks = chunkText(parsed, chunkOpts);
       const vectors = await this.embeddingClient.embed(chunks.map((chunk) => chunk.text));
       if (vectors.length !== chunks.length) throw new Error(`embedding count mismatch: ${vectors.length} != ${chunks.length}`);
       await this.hooks.beforeCommit?.({ libraryId, filePath, documentId: row.id, chunks, vectors });

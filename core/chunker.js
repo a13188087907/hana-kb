@@ -13,7 +13,7 @@ const CLAUSE_RULES = [
   { re: new RegExp(`^[${CN_NUM}]+、`), level: 2 },
   { re: new RegExp(`^第[${CN_NUM}\\d]+条`), level: 3 },
   { re: new RegExp(`^[（(][${CN_NUM}]+[)）]`), level: 4 },
-  { re: /^\d+(?:[.．]\d+)+/, chain: true },
+  { re: /^\d{1,3}(?:[.．]\d{1,3})+(?![.．\d])/, chain: true },
   { re: /^\d+[.．、](?!\d)/, level: 5 },
   { re: /^[（(]\d+[)）]/, level: 6 },
   { re: /^[①-⑳]/, level: 7 },
@@ -34,6 +34,8 @@ function classifyLine(line) {
   for (const rule of CLAUSE_RULES) {
     const m = rule.re.exec(t);
     if (!m) continue;
+    // 小数/版本号防误识别：编号后无间隔紧跟数量单位（1.5倍、2.0版）不当条款；有空格间隔的（5.1 年后复查）放行
+    if (/^[倍折元年月日岁斤米升克℃°%版本]/.test(t.slice(m[0].length))) return null;
     if (rule.chain) return { level: m[0].split(/[.．]/).length + 1, label: m[0], kind: "clause", content: true };
     return { level: rule.level + 1, label: m[0], kind: "clause", content: true };
   }
@@ -57,6 +59,7 @@ function parseStructure(text) {
       while (stack.length > 1 && stack[stack.length - 1].level >= node.level) stack.pop();
       const child = {
         ...node,
+        lineStart: start, // 行起点（引言段上界用，避免前言块混入标题行）
         contentStart: node.content ? start : start + raw.length + 1,
         end: start + raw.length,
         children: [],
@@ -238,8 +241,8 @@ export function chunkText(parsed, options = {}) {
       emit(node.contentStart, node.end, path);
       return;
     }
-    // 超长：自身引言段（contentStart 到首 child 起点）先行
-    const firstChildStart = node.children.length ? node.children[0].contentStart : node.end;
+    // 超长：自身引言段（contentStart 到首 child 行起点）先行
+    const firstChildStart = node.children.length ? node.children[0].lineStart : node.end;
     if (firstChildStart > node.contentStart) {
       const ownLen = firstChildStart - node.contentStart;
       if (ownLen <= config.max) emit(node.contentStart, firstChildStart, path);

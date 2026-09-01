@@ -48,3 +48,14 @@ test("drops short fragments and keeps markdown title paths, code blocks, and tab
   assert.equal(chunks[0].text.includes("| 列1 | 列2 |"), true);
   assert.equal(text.slice(chunks[0].startOffset, chunks[0].endOffset), chunks[0].text.slice("一级 > 二级 > ".length));
 });
+
+
+test("前言块不混入标题行，小数不误判为条款", () => {
+  const text = ["前言段落，介绍文档背景信息，长度凑够三十个字符以上以便成块。", "", "# 第一章 总则", "", "1.5倍杠杆属于风险提示，不是条款编号，这句话也需要足够长度。", "", "## 第一节 范围", "", "本节内容正文，需要超过三十个字符才会被保留下来，继续补充一点内容。"].join("\n");
+  const chunks = chunkText({ text, format: "md" }, { minLength: 30 });
+  // 前言块不含 "第一章" 标题行
+  const preface = chunks[0];
+  assert.ok(!preface.text.includes("第一章"));
+  // "1.5倍" 不被识别为条款链（不产生以 "1.5" 为路径的块）
+  assert.ok(!chunks.some((c) => /(^|>) ?1\.5( >|$)/.test(c.titlePath || "")));
+});

@@ -13,6 +13,22 @@ const CRAWL4AI_BASE = process.env.HANA_KB_CRAWL4AI_URL || "http://127.0.0.1:1123
 
 const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
 
+// SSRF 防护：拦截内网/本机地址（我们走 route 层原生 fetch 绕开了 allowedHosts，这道墙必须自己补）。
+// 边界：只拦字面私有地址与 localhost 主机名，不防 DNS  rebinding（域名解析到内网）——本地自用插件接受该残余风险。
+function isPrivateHost(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  if (!h || h === "localhost" || h.endsWith(".localhost") || h === "::1" || h === "[::1]" || h === "0.0.0.0") return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (m) {
+    const a = Number(m[1]), b = Number(m[2]);
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true; // 链路本地/云元数据
+  }
+  return false;
+}
+
 export async function fetchUrlToMarkdown(url, { fetchImpl = globalThis.fetch, timeoutMs = 25000 } = {}) {
   const target = String(url ?? "").trim();
   let parsed;
@@ -23,6 +39,9 @@ export async function fetchUrlToMarkdown(url, { fetchImpl = globalThis.fetch, ti
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("只支持 http/https 链接");
+  }
+  if (isPrivateHost(parsed.hostname)) {
+    throw new Error("不支持抓取内网或本机地址");
   }
 
   const controller = new AbortController();

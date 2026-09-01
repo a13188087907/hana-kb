@@ -155,8 +155,12 @@ function graphSearch(db, queryVector) {
   const neighbor = db.prepare(`SELECT target_entity_id AS id FROM relations WHERE source_entity_id=? UNION SELECT source_entity_id AS id FROM relations WHERE target_entity_id=?`);
   for (const entity of hitEntities) for (const row of neighbor.all(entity.id, entity.id)) expanded.add(row.id);
   const count = new Map();
-  const chunks = db.prepare("SELECT chunk_id FROM chunk_entities WHERE entity_id=?");
-  for (const entityId of expanded) for (const row of chunks.all(entityId)) count.set(row.chunk_id, (count.get(row.chunk_id) ?? 0) + 1);
+  const expandedIds = [...expanded];
+  if (expandedIds.length) {
+    // 批量 IN 查询，避免每实体一次 SQL 的 N+1
+    const rows = db.prepare(`SELECT chunk_id FROM chunk_entities WHERE entity_id IN (${expandedIds.map(() => "?").join(",")})`).all(...expandedIds);
+    for (const row of rows) count.set(row.chunk_id, (count.get(row.chunk_id) ?? 0) + 1);
+  }
   const ids = [...count.entries()].sort((a, b) => b[1] - a[1] || compareIds(a[0], b[0])).map(([id]) => id);
   return { ids, hitEntities: hitEntities.map((entity) => entity.name) };
 }

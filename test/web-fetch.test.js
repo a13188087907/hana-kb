@@ -51,3 +51,10 @@ test("HTTP 错误状态被拒绝", async () => {
   const failFetch = async () => ({ ok: false, status: 403, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) });
   await assert.rejects(() => fetchUrlToMarkdown("https://example.com/x", { fetchImpl: failFetch }), /403/);
 });
+
+
+test("内网地址被 SSRF 防护拦截", async () => {
+  for (const url of ["http://192.168.1.1/admin", "http://10.0.0.1/", "http://127.0.0.1:8080/", "http://localhost/x", "http://169.254.169.254/latest/meta-data", "http://172.16.0.1/"]) {
+    await assert.rejects(() => fetchUrlToMarkdown(url), /内网/);
+  }
+});

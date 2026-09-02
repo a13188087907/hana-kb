@@ -1,4 +1,4 @@
-// registerMany 行为测试：即时登记、重复跳过、内容变化重新登记
+﻿// registerMany 行为测试：即时登记、重复跳过、内容变化重新登记
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -28,7 +28,7 @@ db.exec(`
 `);
 
 const manager = { open: () => ({ db }) };
-const embeddingClient = { embed: async (texts) => texts.map(() => new Array(8).fill(0.1)) };
+const embeddingClient = { config: () => ({ baseUrl: "https://test.local", model: "test-model" }), embed: async (texts) => texts.map(() => new Array(8).fill(0.1)) };
 const service = new IngestService({ manager, embeddingClient, concurrency: 1 });
 
 test("registerMany 立即登记全部文件为 pending", async () => {

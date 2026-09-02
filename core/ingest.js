@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { chunkText } from "./chunker.js";
 import { CONVERTIBLE_EXTS } from "./converter.js";
-import { getLibraryConfig, getLibraryFeatures } from "./db.js";
+import { getLibraryConfig, getLibraryFeatures, setIndexFingerprint } from "./db.js";
 import { parseFile } from "./parser.js";
 import { fetchUrlToMarkdown } from "./web-fetch.js";
 
@@ -158,6 +158,9 @@ export class IngestService {
       const chunks = chunkText(parsed, chunkOpts);
       const vectors = await this.embeddingClient.embed(chunks.map((chunk) => chunk.text));
       if (vectors.length !== chunks.length) throw new Error(`embedding count mismatch: ${vectors.length} != ${chunks.length}`);
+      // 写入/刷新索引指纹（换模型后搜索时会被拦下）
+      const embConfig = this.embeddingClient.config();
+      setIndexFingerprint(db, { provider: embConfig.baseUrl, model: embConfig.model, dimensions: vectors[0]?.length ?? 0 });
       await this.hooks.beforeCommit?.({ libraryId, filePath, documentId: row.id, chunks, vectors });
 
       const write = db.transaction(() => {

@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -75,7 +75,7 @@ test("uses the library chunk configuration when reingesting a document", async (
     const manager = new LibraryManager({ dataDir });
     manager.create("chunking");
     manager.updateConfig("chunking", { chunkTargetLength: 80, chunkOverlap: 20 });
-    const ingest = new IngestService({ manager, embeddingClient: { embed: async (texts) => texts.map(() => [1, 0]) } });
+    const ingest = new IngestService({ manager, embeddingClient: { config: () => ({ baseUrl: "https://test.local", model: "test-model" }), embed: async (texts) => texts.map(() => [1, 0]) } });
     const result = await ingest.ingest("chunking", [filePath]);
     assert.equal(result[0].status, "done");
     const rows = manager.open("chunking").db.prepare("SELECT text FROM chunks ORDER BY ordinal").all();

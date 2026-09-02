@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { rrfFuse, SearchService, float32Blob } from "../core/search.js";
 import { makeTempDir, removeDir } from "./helpers.js";
@@ -25,7 +25,7 @@ test("BM25 participates in RRF only when its library switch is enabled", async (
       insertVector.run(id, float32Blob(vector));
       insertFts.run(id, text, id);
     });
-    const search = new SearchService({ manager, embeddingClient: { embed: async () => [[1, 0]] } });
+    const search = new SearchService({ manager, embeddingClient: { config: () => ({ baseUrl: "https://test.local", model: "test-model" }), embed: async () => [[1, 0]] } });
     const result = await search.search("bm25-search", "beta", { topK: 2, distanceThreshold: 1 });
     assert.equal(result[0].text, "beta only");
     assert.equal(result[0].source, "rrf");
@@ -55,7 +55,7 @@ test("graph results append after an unchanged vector main ranking", async () => 
     }
     db.prepare("INSERT INTO relations (source_entity_id, relation, target_entity_id, source_chunk_id) VALUES (?, '关联', ?, ?)").run(entityA, entityB, chunkIds[0]);
     db.prepare("INSERT INTO chunk_entities (chunk_id, entity_id) VALUES (?, ?)").run(chunkIds[2], entityA);
-    const search = new SearchService({ manager, embeddingClient: { embed: async () => [[1, 0]] } });
+    const search = new SearchService({ manager, embeddingClient: { config: () => ({ baseUrl: "https://test.local", model: "test-model" }), embed: async () => [[1, 0]] } });
     const result = await search.search("graph-search", "问题", { topK: 2, distanceThreshold: 1 });
     assert.deepEqual(result.slice(0, 2).map((item) => item.text), ["主排序一", "主排序二"]);
     assert.equal(result[2].text, "图谱追加");

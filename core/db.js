@@ -173,6 +173,47 @@ function readConfigJson(db, key) {
   try { return JSON.parse(row.value) ?? {}; } catch { return {}; }
 }
 
+function writeConfigJson(db, key, value) {
+  db.prepare("INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    .run(key, JSON.stringify(value));
+}
+
+// ---------- 索引指纹：记录向量由哪个模型生成，防止换模型后静默返回垃圾 ----------
+
+export function getIndexFingerprint(db) {
+  const fp = readConfigJson(db, "index");
+  return {
+    provider: String(fp.provider ?? ""),
+    model: String(fp.model ?? ""),
+    dimensions: Number(fp.dimensions) || 0,
+    indexedAt: String(fp.indexedAt ?? ""),
+  };
+}
+
+export function setIndexFingerprint(db, { provider, model, dimensions }) {
+  writeConfigJson(db, "index", {
+    provider: String(provider ?? ""),
+    model: String(model ?? ""),
+    dimensions: Number(dimensions) || 0,
+    indexedAt: new Date().toISOString(),
+  });
+}
+
+// 核对当前 embedding 配置与库内指纹是否一致；不一致返回错误消息，一致或空库返回 null
+export function checkIndexFingerprint(db, currentConfig, vectorDimensions) {
+  const stored = getIndexFingerprint(db);
+  if (!stored.model) return null; // 空库无指纹
+  const provider = String(currentConfig?.baseUrl ?? "");
+  const model = String(currentConfig?.model ?? "");
+  if (stored.model !== model || stored.provider !== provider) {
+    return `索引指纹不匹配：库内向量由 ${stored.model} 生成，当前配置是 ${model}（${provider}）。不同模型的向量不可比，请先重建索引`;
+  }
+  if (vectorDimensions && stored.dimensions && stored.dimensions !== vectorDimensions) {
+    return `向量维度不匹配：库内 ${stored.dimensions} 维，当前返回 ${vectorDimensions} 维，请重建索引`;
+  }
+  return null;
+}
+
 function pickDefined(source, keys) {
   return Object.fromEntries(keys.filter((key) => source[key] != null).map((key) => [key, source[key]]));
 }

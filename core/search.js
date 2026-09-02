@@ -1,4 +1,4 @@
-import { getLibraryFeatures } from "./db.js";
+import { getLibraryFeatures, checkIndexFingerprint } from "./db.js";
 
 const DEFAULT_TOP_K = 15;
 const DEFAULT_DISTANCE_THRESHOLD = 0.7;
@@ -56,6 +56,9 @@ export class SearchService {
     const distanceThreshold = resolveDistanceThreshold(options, config);
     const [vector] = await this.embeddingClient.embed([text]);
     if (!vector) throw new Error("query embedding is empty");
+    // 索引指纹核对：换过 embedding 模型时阻止返回不可比的向量结果
+    const fpError = checkIndexFingerprint(db, this.embeddingClient.config(), vector.length);
+    if (fpError) throw new Error(fpError);
 
     let vectorRows = vectorSearch(db, vector, distanceThreshold, topK * 3);
     if (features.mmrEnabled) {

@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { makeTempDir, removeDir } from "./helpers.js";
 import { LibraryManager } from "../core/library-manager.js";
@@ -22,7 +22,7 @@ test("searches ordinary BLOB vectors with cosine distance, topK, and threshold",
       const chunkId = Number(insertChunk.run(documentId, index, text, "一级", index * 4, index * 4 + text.length).lastInsertRowid);
       insertVector.run(chunkId, float32Blob(vector));
     });
-    const search = new SearchService({ manager, embeddingClient: { embed: async () => [[1, 0]] } });
+    const search = new SearchService({ manager, embeddingClient: { config: () => ({ baseUrl: "https://test.local", model: "test-model" }), embed: async () => [[1, 0]] } });
     const result = await search.search("search", "问题", { topK: 2, distanceThreshold: 0.5 });
     assert.equal(result.length, 2);
     assert.deepEqual(result.map((item) => item.text), ["最相关", "次相关"]);
@@ -49,7 +49,7 @@ test("uses topK 15 by default", async () => {
       const chunkId = Number(insertChunk.run(docId, index, `chunk-${index}`).lastInsertRowid);
       insertVector.run(chunkId, float32Blob([1, 0]));
     }
-    const search = new SearchService({ manager, embeddingClient: { embed: async () => [[1, 0]] } });
+    const search = new SearchService({ manager, embeddingClient: { config: () => ({ baseUrl: "https://test.local", model: "test-model" }), embed: async () => [[1, 0]] } });
     assert.equal((await search.search("topk", "问题")).length, 15);
     await manager.closeAll();
   } finally {

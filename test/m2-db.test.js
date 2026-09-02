@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
 import { makeTempDir, removeDir } from "./helpers.js";
@@ -40,3 +40,32 @@ test("migrates an M1 ordinary fts table and keeps its rows", () => {
     removeDir(dataDir);
   }
 });
+
+test("索引指纹：写入、核对、换模型拦截", async () => {
+  const { makeTempDir, removeDir } = await import("./helpers.js");
+  const { LibraryManager } = await import("../core/library-manager.js");
+  const { setIndexFingerprint, getIndexFingerprint, checkIndexFingerprint } = await import("../core/db.js");
+  const dir = makeTempDir();
+  try {
+    const manager = new LibraryManager({ dataDir: dir });
+    const { db } = manager.create("fp-test");
+    // 空库无指纹，核对通过
+    assert.equal(checkIndexFingerprint(db, { baseUrl: "https://a.com", model: "m1" }, 1024), null);
+    // 写入指纹
+    setIndexFingerprint(db, { provider: "https://a.com", model: "m1", dimensions: 1024 });
+    assert.equal(getIndexFingerprint(db).model, "m1");
+    // 同配置核对通过
+    assert.equal(checkIndexFingerprint(db, { baseUrl: "https://a.com", model: "m1" }, 1024), null);
+    // 换模型被拦
+    const err = checkIndexFingerprint(db, { baseUrl: "https://a.com", model: "m2" }, 1024);
+    assert.match(err, /索引指纹不匹配/);
+    assert.match(err, /m1/);
+    assert.match(err, /m2/);
+    // 维度不符被拦
+    const dimErr = checkIndexFingerprint(db, { baseUrl: "https://a.com", model: "m1" }, 512);
+    assert.match(dimErr, /维度不匹配/);
+  } finally {
+    removeDir(dir);
+  }
+});
+

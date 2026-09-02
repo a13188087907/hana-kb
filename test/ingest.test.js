@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +9,7 @@ import { IngestService } from "../core/ingest.js";
 function makeRuntime({ dataDir, embed, concurrency = 4, hooks } = {}) {
   const manager = new LibraryManager({ dataDir });
   manager.create("main");
-  const embeddingClient = { embed: embed ?? (async (texts) => texts.map(() => [1, 0])) };
+  const embeddingClient = { config: () => ({ baseUrl: "https://test.local", model: "test-model" }), embed: embed ?? (async (texts) => texts.map(() => [1, 0])) };
   const service = new IngestService({ manager, embeddingClient, concurrency, hooks });
   return { manager, service };
 }

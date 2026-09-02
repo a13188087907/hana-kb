@@ -588,7 +588,7 @@ function graphView() {
     : (state.fullGraph?.nodes?.length
       ? `<div class="graph-meta"><span class="hint">全景视图：悬停节点高亮其连线，拖动节点可整理布局，点击进入局部展开；滚轮缩放、拖拽平移、双击复位</span>${state.fullGraph.truncated ? `<span class="mono">（超上限截断展示）</span>` : ""}</div>${graphMount()}`
       : `<div class="graph-empty">${state.fullGraph ? "图谱还没有实体。" : "图谱数据加载中…"}</div>`);
-  return `<section class="graph-view">${graphStatusBar(stats, library)}<form id="graph-search-form" class="graph-search"><label>搜索实体<input name="entity" required placeholder="输入实体名，查看它的一跳关系"></label><button class="primary-button" type="submit">搜索实体</button><button class="outline-button" type="button" data-action="rebuild-graph">补建图谱</button><button class="outline-button" type="button" data-action="clean-graph">清洗实体</button></form>${candidateHtml}<div class="graph-stage">${graphContent}</div></section>`;
+  return `<section class="graph-view">${graphStatusBar(stats, library)}<form id="graph-search-form" class="graph-search"><label>搜索实体<input name="entity" required placeholder="输入实体名，查看它的一跳关系"></label><button class="primary-button" type="submit">搜索实体</button><button class="outline-button" type="button" data-action="rebuild-graph">补建图谱</button></form>${candidateHtml}<div class="graph-stage">${graphContent}</div></section>`;
 }
 
 function renderSearchDrawer() {

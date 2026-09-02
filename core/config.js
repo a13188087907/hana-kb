@@ -6,8 +6,8 @@ export const DEFAULT_EMBEDDING_CONFIG = Object.freeze({
   model: "BAAI/bge-m3",
 });
 export const DEFAULT_LLM_CONFIG = Object.freeze({
-  baseUrl: "https://api.siliconflow.cn/v1",
-  model: "deepseek-ai/DeepSeek-V3",
+  baseUrl: "https://api.deepseek.com/v1",
+  model: "deepseek-v4-flash",
 });
 const MASKED_SHORT_KEY = "********";
 

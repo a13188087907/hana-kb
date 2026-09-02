@@ -24,7 +24,7 @@ function detectCommunities(nodes, edges) {
   return result;
 }
 
-const DEFAULT_LLM_MODEL = "deepseek-ai/DeepSeek-V3";
+const DEFAULT_LLM_MODEL = "deepseek-v4-flash";
 const GRAPH_SEARCH_LIMIT = 20;
 const GRAPH_NODE_LIMIT = 81;
 const GRAPH_EDGE_LIMIT = 160;

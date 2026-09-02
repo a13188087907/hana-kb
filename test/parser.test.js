@@ -40,7 +40,7 @@ test("decodes GBK txt into the normalized text", async () => {
 test("rejects unsupported file extensions", async () => {
   const dir = makeTempDir();
   try {
-    const file = path.join(dir, "note.pdf");
+    const file = path.join(dir, "note.zip");
     fs.writeFileSync(file, "not supported");
     await assert.rejects(() => parseFile(file), /unsupported file format/);
   } finally {

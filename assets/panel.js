@@ -694,7 +694,7 @@ function ensurePickers() {
   fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.multiple = true;
-  fileInput.accept = ".md,.markdown,.txt,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.epub,.rtf,.odt";
+  fileInput.accept = ".md,.markdown,.txt,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.epub,.rtf,.odt,.pdf";
   fileInput.style.display = "none";
   document.body.appendChild(fileInput);
   fileInput.addEventListener("change", () => { const files = [...fileInput.files]; fileInput.value = ""; if (files.length) handlePickedFiles(files); });

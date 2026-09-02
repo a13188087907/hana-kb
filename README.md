@@ -137,3 +137,4 @@ npm run selftest   # 真实 API 全链路自测
 - 1.4：pdf 支持（中文乱码专项验证）、费用熔断、资源访问改造（ctx.resources 通道）、检索置信阈值按真实分布校准
 - 后续：社区摘要页（GraphRAG 式全局问答）、Contextual Embedding（LLM 上下文前缀）、rerank 精排、图谱实体合并 UI、查询改写（日期等精确词格式归一）
 
+

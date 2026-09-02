@@ -9,7 +9,7 @@ import XLSX from "xlsx";
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 
-export const CONVERTIBLE_EXTS = new Set([".docx", ".doc", ".ppt", ".epub", ".rtf", ".odt", ".xlsx", ".xls", ".pptx"]);
+export const CONVERTIBLE_EXTS = new Set([".docx", ".doc", ".ppt", ".epub", ".rtf", ".odt", ".xlsx", ".xls", ".pptx", ".pdf"]);
 
 const ANYDOC_EXTS = new Set([".docx", ".doc", ".ppt", ".epub", ".rtf", ".odt"]);
 const XLSX_EXTS = new Set([".xlsx", ".xls"]);
@@ -145,11 +145,37 @@ async function anydocToMarkdown(filePath, ext) {
     throw new Error(`当前平台不支持 ${ext} 格式转换（anydoc 原生模块不可用）`);
   }
   const buffer = fs.readFileSync(filePath);
-  const raw = await anydoc.toMarkdownBytes(buffer);
+  let raw;
+  try {
+    raw = await anydoc.toMarkdownBytes(buffer);
+  } catch (error) {
+    // 扫描件：anydoc 明确报错（no extractable text / OCR is required），如实转换为用户可读错误
+    if (/no extractable text|OCR is required/i.test(error?.message ?? "")) {
+      throw new Error("该 PDF 是扫描件（图片型），没有可提取的文字层，需要 OCR 才能入库。当前版本暂不支持 OCR，请先用 OCR 工具转为文字型 PDF");
+    }
+    throw error;
+  }
   let markdown = (typeof raw === "string" ? raw : Buffer.from(raw).toString("utf8")).trim();
   const warnings = [];
   if (ext === ".docx") markdown = promoteBoldHeadings(markdown);
+  if (ext === ".pdf") markdown = cleanPdfText(markdown, warnings);
   return { markdown, warnings };
+}
+
+// PDF 提取后处理（anydoc 通道，2026-09-05 五份真实 PDF 实测选型）
+// 1. 中文间空格清理：PDF 按字距切词，常把「以保障」拆成「以保 障」；只删中文字符之间的空格，保留中英文之间的
+// 2. 碎片化版面检测：PPT 转 PDF 等复杂版面的文字按 z-order 提取导致乱序碎片（如「创 世 界」「伟 大 公 司」），
+//    短行占比过高时警告「版面复杂，内容顺序可能混乱」，不静默修正（无法可靠修正）
+function cleanPdfText(markdown, warnings) {
+  const cleaned = markdown.replace(/(?<=[一-龥]) +(?=[一-龥])/g, "");
+  const lines = cleaned.split("\n").filter((l) => l.trim());
+  if (lines.length > 10) {
+    const fragments = lines.filter((l) => l.trim().replace(/[#|*\-\s]/g, "").length <= 3).length;
+    if (fragments / lines.length > 0.25) {
+      warnings.push("版面复杂（可能为 PPT 转 PDF），文字顺序可能混乱，建议检查入库内容质量");
+    }
+  }
+  return cleaned;
 }
 
 // 中文办公文档的“标题”常是手动加粗+手动编号而非 Word 标题样式，

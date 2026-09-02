@@ -90,3 +90,8 @@ test("chunkText 短表格保持单块且带表头", () => {
   assert.equal(chunks.length, 1);
   assert.ok(chunks[0].text.includes("| A | B |"));
 });
+
+test("cleanPdfText 清理中文间空格但保留中英文之间的空格", () => {
+  const cleaned = "以保 障患者安全。支持 PDF 格式。创 世 界".replace(/(?<=[一-龥]) +(?=[一-龥])/g, "");
+  assert.equal(cleaned, "以保障患者安全。支持 PDF 格式。创世界");
+});

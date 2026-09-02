@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import { getConfigForUi, savePluginConfig } from "../core/config.js";
 import { collectFiles } from "../core/ingest.js";
@@ -113,7 +113,7 @@ export default function registerWebuiRoutes(app, ctx) {
       const libraryId = c.req.param("libraryId");
       try { runtime.embeddingClient.config(); } catch (error) { return c.json({ ok: false, error: userFacingError(error) }, 400); }
       const { filePath, title } = await runtime.ingest.fetchAndStoreUrl(libraryId, body.url);
-      const registered = runtime.ingest.registerMany(libraryId, [filePath], {});
+      const registered = await runtime.ingest.registerMany(libraryId, [filePath], {});
       const job = runtime.ingest.processMany(libraryId, [filePath], {});
       void job.catch((error) => runtime.log?.error?.(`[hana-kb] url ingest failed: ${error.message}`));
       return c.json({ ok: true, title, path: filePath, registered }, 202);
@@ -129,10 +129,10 @@ export default function registerWebuiRoutes(app, ctx) {
       const runtime = getRuntime();
       if (!body?.resume && !Array.isArray(body?.paths)) return c.json({ ok: false, error: "paths or resume is required" }, 400);
       const files = body?.resume ? null : collectFiles(body.paths);
-      if (files && !files.length) return c.json({ ok: false, error: "未找到可入库的文件（支持 md/txt/docx/doc/xlsx/xls/pptx/ppt/epub/rtf/odt）" }, 400);
+      if (files && !files.length) return c.json({ ok: false, error: "未找到可入库的文件（支持 md/txt/docx/doc/xlsx/xls/pptx/ppt/epub/rtf/odt/pdf）" }, 400);
       try { runtime.embeddingClient.config(); } catch (error) { return c.json({ ok: false, error: userFacingError(error) }, 400); }
       let registered = null;
-      if (files) registered = runtime.ingest.registerMany(libraryId, files, { force: Boolean(body.force) });
+      if (files) registered = await runtime.ingest.registerMany(libraryId, files, { force: Boolean(body.force) });
       const job = body?.resume
         ? runtime.ingest.resume(libraryId)
         : runtime.ingest.processMany(libraryId, files, { force: Boolean(body.force) });
@@ -149,18 +149,20 @@ export default function registerWebuiRoutes(app, ctx) {
     try {
       const libraryId = c.req.param("libraryId");
       const runtime = getRuntime();
+      // 路径穿越防护：libraryId 必须经 safeLibraryId 规范化
+      const safeId = runtime.manager.open(libraryId).libraryId;
       const form = await c.req.formData();
       const files = [];
       for (const value of form.values()) {
         if (value && typeof value === "object" && typeof value.arrayBuffer === "function" && value.name) files.push(value);
       }
       if (!files.length) return c.json({ ok: false, error: "没有收到文件" }, 400);
-      const uploadDir = path.join(runtime.dataDir, "uploads", libraryId);
+      const uploadDir = path.join(runtime.dataDir, "uploads", safeId);
       const saved = [];
       for (const file of files) {
         const rel = String(file.name).replace(/\\/g, "/").replace(/\.\./g, "").replace(/^\/+/, "");
-        const target = path.join(uploadDir, rel);
-        if (!path.resolve(target).startsWith(path.resolve(uploadDir))) continue;
+        const target = path.resolve(uploadDir, rel);
+        if (!target.startsWith(path.resolve(uploadDir) + path.sep) && target !== path.resolve(uploadDir)) continue;
         fs.mkdirSync(path.dirname(target), { recursive: true });
         // 同名覆盖写入：路径稳定，重复上传同内容文件时 hash 相同可被跳过，不再无限增长
         fs.writeFileSync(target, Buffer.from(await file.arrayBuffer()));
@@ -168,7 +170,7 @@ export default function registerWebuiRoutes(app, ctx) {
       }
       if (!saved.length) return c.json({ ok: false, error: "没有可入库的文件" }, 400);
       try { runtime.embeddingClient.config(); } catch (error) { return c.json({ ok: false, error: userFacingError(error) }, 400); }
-      const registered = runtime.ingest.registerMany(libraryId, saved, {});
+      const registered = await runtime.ingest.registerMany(libraryId, saved, {});
       const job = runtime.ingest.processMany(libraryId, saved, {});
       void job.catch((error) => runtime.log?.error?.(`[hana-kb] upload ingest failed: ${error.message}`));
       return c.json({ ok: true, libraryId, status: "processing", queued: saved.length, registered }, 202);
@@ -311,3 +313,4 @@ function renderShell(c, ctx) {
 function escapeAttr(value) {
   return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+

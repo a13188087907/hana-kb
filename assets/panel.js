@@ -706,7 +706,7 @@ function ensurePickers() {
   dirInput.addEventListener("change", () => { const files = [...dirInput.files].filter((f) => /\.(md|markdown|txt|docx|doc|xlsx|xls|pptx|ppt|epub|rtf|odt)$/i.test(f.name)); dirInput.value = ""; if (files.length) handlePickedFiles(files); });
 }
 
-const CONVERTIBLE_RE = /\.(docx|doc|xlsx|xls|pptx|ppt|epub|rtf|odt)$/i;
+const CONVERTIBLE_RE = /\.(docx|doc|xlsx|xls|pptx|ppt|epub|rtf|odt|pdf)$/i;
 
 async function handlePickedFiles(files) {
   const paths = files.map((f) => f.path || "").filter((p) => p && (p.includes("\\") || p.includes("/")));
@@ -1118,15 +1118,17 @@ function bindEvents() {
   app.querySelectorAll('[data-action="toggle-chunk"]').forEach((card) => card.addEventListener("click", () => { state.expandedChunks = toggleExpanded(state.expandedChunks, card.dataset.chunkId); render(); }));
   app.querySelector('[data-action="graph-back-full"]')?.addEventListener("click", () => { state.graphMode = "full"; state.graph = null; state.graphCandidates = []; render(); });
   app.querySelector('[data-action="rebuild-graph"]')?.addEventListener("click", rebuildGraph);
-  app.querySelectorAll('[data-action="clean-graph"]').forEach((btn) => btn.addEventListener("click", async () => {
+  app.querySelectorAll('[data-action="clean-graph"]').forEach((btn) => btn.addEventListener("click", () => {
     const libId = btn.dataset.libraryId || state.libraryId;
-    try {
-      const result = await request(`api/libraries/${encodeURIComponent(libId)}/graph-clean`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      setMessage(`清洗完成：实体删 ${result.dropped}、降级拆边 ${result.weakened}；边 ${result.before.relations} → ${result.after.relations}`);
-      state.fullGraph = null; state.graph = null;
-      await loadFullGraph().catch(() => {});
-      render();
-    } catch (error) { setMessage(friendlyError(error)); render(); }
+    askConfirm("确认清洗实体？将删除垃圾实体（编号/元数据人名/边界崩坏/表格碎片）并拆掉泛化枢纽的边。此操作不可撤销。", async () => {
+      try {
+        const result = await request(`api/libraries/${encodeURIComponent(libId)}/graph-clean`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        setMessage(`清洗完成：实体删 ${result.dropped}、降级拆边 ${result.weakened}；边 ${result.before.relations} → ${result.after.relations}`);
+        state.fullGraph = null; state.graph = null;
+        await loadFullGraph().catch(() => {});
+        render();
+      } catch (error) { setMessage(friendlyError(error)); render(); }
+    });
   }));
   app.querySelectorAll(".graph-node").forEach((node) => node.addEventListener("click", () => loadGraphEntity(node.dataset.entityId)));
   initGraphEngine();

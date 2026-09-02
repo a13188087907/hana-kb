@@ -83,6 +83,7 @@ export class GraphBuildService {
           FROM relations r WHERE r.source_entity_id=e.id OR r.target_entity_id=e.id
         )) AS degree
       FROM entities e
+      WHERE e.graph_role = 'keep'
       ORDER BY degree DESC, e.id
       LIMIT ?
     `).all(MAX_NODES).map((row) => ({ id: row.id, name: row.name, type: row.type, degree: Number(row.degree) }));
@@ -416,11 +417,11 @@ export class GraphBuildService {
 
     db.transaction(() => {
       db.exec("DELETE FROM relations; DELETE FROM chunk_entities; DELETE FROM entities;");
-      const insertEntity = db.prepare("INSERT INTO entities (name, type, aliases_json, embedding) VALUES (?, ?, ?, ?)");
+      const insertEntity = db.prepare("INSERT INTO entities (name, type, aliases_json, embedding, graph_role) VALUES (?, ?, ?, ?, ?)");
       const insertChunkEntity = db.prepare("INSERT OR IGNORE INTO chunk_entities (chunk_id, entity_id) VALUES (?, ?)");
       const entityIds = new Map();
       keptRows.forEach((row, index) => {
-        const id = Number(insertEntity.run(row.name, row.type, JSON.stringify(row.aliases), float32Blob(embeddings[index])).lastInsertRowid);
+        const id = Number(insertEntity.run(row.name, row.type, JSON.stringify(row.aliases), float32Blob(embeddings[index]), entityAction.get(row.root) ?? "keep").lastInsertRowid);
         entityIds.set(row.root, id);
         for (const member of row.members) entityIds.set(member, id);
         for (const chunkId of row.chunks) insertChunkEntity.run(chunkId, id);
@@ -431,7 +432,7 @@ export class GraphBuildService {
         const targetId = entityIds.get(find(relation.target));
         // weak 实体不建边（泛化枢纽拆掉），drop 已不在 entityIds
         if (!sourceId || !targetId || sourceId === targetId) continue;
-        if (entityAction.get(find(relation.source)) === "weak" || entityAction.get(find(relation.target)) === "weak") continue;
+        if (entityAction.get(find(relation.source)) !== "keep" || entityAction.get(find(relation.target)) !== "keep") continue;
         insertRelation.run(sourceId, relation.predicate, targetId, relation.chunkId);
       }
     })();
@@ -512,7 +513,7 @@ export function graphStats(db) {
     entities,
     relations,
     uniqueEdges,
-    averageDegree: entities ? (relations * 2) / entities : 0,
+    averageDegree: entities ? (uniqueEdges * 2) / entities : 0,
     isolatedEntities,
     isolatedRatio: entities ? isolatedEntities / entities : 0,
     processingChunks,

@@ -119,7 +119,7 @@ function vectorSearch(db, vector, distanceThreshold, limit) {
              vec_distance_cosine(v.embedding, ?) AS distance
       FROM vec_index v
       JOIN chunks c ON c.id = v.chunk_id
-      JOIN documents d ON d.id = c.document_id
+      JOIN documents d ON d.id = c.document_id AND d.status = 'done'
     )
     WHERE distance <= ?
     ORDER BY distance ASC, id ASC
@@ -138,7 +138,7 @@ function bm25Search(db, query, limit) {
              bm25(fts_chunks) AS bm25Score
       FROM fts_chunks
       JOIN chunks c ON c.id = fts_chunks.chunk_id
-      JOIN documents d ON d.id = c.document_id
+      JOIN documents d ON d.id = c.document_id AND d.status = 'done'
       WHERE fts_chunks MATCH ?
       ORDER BY bm25(fts_chunks) ASC, c.id ASC
       LIMIT ?
@@ -149,7 +149,7 @@ function bm25Search(db, query, limit) {
 }
 
 function graphSearch(db, queryVector) {
-  const entities = db.prepare("SELECT id, name, embedding FROM entities WHERE embedding IS NOT NULL").all();
+  const entities = db.prepare("SELECT id, name, embedding FROM entities WHERE embedding IS NOT NULL AND graph_role = 'keep'").all();
   const scored = entities.map((entity) => ({ ...entity, similarity: cosineSimilarity(queryVector, fromFloat32Blob(entity.embedding)) }))
     .sort((a, b) => b.similarity - a.similarity || a.id - b.id);
   const hitEntities = scored.slice(0, GRAPH_ENTITY_LIMIT).filter((entity) => entity.similarity >= GRAPH_SIMILARITY_THRESHOLD);
@@ -188,7 +188,7 @@ function decorate(row, routeHits, id) {
 }
 
 function loadChunkRow(db, id) {
-  return db.prepare(`SELECT c.id, c.document_id AS documentId, d.name AS documentName, c.text, c.title_path AS titlePath, c.start_offset AS startOffset, c.end_offset AS endOffset FROM chunks c JOIN documents d ON d.id=c.document_id WHERE c.id=?`).get(id);
+  return db.prepare(`SELECT c.id, c.document_id AS documentId, d.name AS documentName, c.text, c.title_path AS titlePath, c.start_offset AS startOffset, c.end_offset AS endOffset FROM chunks c JOIN documents d ON d.id=c.document_id AND d.status='done' WHERE c.id=?`).get(id);
 }
 
 export function float32Blob(vector) {

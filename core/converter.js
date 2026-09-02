@@ -150,7 +150,7 @@ async function anydocToMarkdown(filePath, ext) {
     raw = await anydoc.toMarkdownBytes(buffer);
   } catch (error) {
     // 扫描件：anydoc 明确报错（no extractable text / OCR is required），如实转换为用户可读错误
-    if (/no extractable text|OCR is required/i.test(error?.message ?? "")) {
+    if (ext === ".pdf" && /no extractable text|OCR is required/i.test(error?.message ?? "")) {
       throw new Error("该 PDF 是扫描件（图片型），没有可提取的文字层，需要 OCR 才能入库。当前版本暂不支持 OCR，请先用 OCR 工具转为文字型 PDF");
     }
     throw error;

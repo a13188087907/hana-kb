@@ -48,7 +48,8 @@ export function cleanLibraryEntities(db, { libraryGenericWords = [] } = {}) {
     }
     if (weakIds.length) {
       const q = db.prepare("DELETE FROM relations WHERE source_entity_id=? OR target_entity_id=?");
-      for (const id of weakIds) q.run(id, id);
+      const mark = db.prepare("UPDATE entities SET graph_role='weak' WHERE id=?");
+      for (const id of weakIds) { q.run(id, id); mark.run(id); }
     }
   });
   tx();

@@ -15,7 +15,7 @@ test("persists management config and marks chunk changes for rebuild", () => {
     const db = manager.create("config").db;
     assert.deepEqual(getLibraryConfig(db), {
       topK: 15,
-      similarityThreshold: 0.5,
+      similarityThreshold: 0.3,
       chunkTargetLength: 400,
       chunkOverlap: 50,
       chunkingCustomized: false,
@@ -134,3 +134,4 @@ test("returns only one-hop graph data with bounded nodes and labeled edges", () 
     removeDir(dataDir);
   }
 });
+

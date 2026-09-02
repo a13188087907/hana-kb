@@ -44,18 +44,34 @@ export async function fetchUrlToMarkdown(url, { fetchImpl = globalThis.fetch, ti
     throw new Error("不支持抓取内网或本机地址");
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // SSRF 防护：手动跟随重定向，每跳重新校验主机（防止公开地址 302 到内网）
+  const MAX_REDIRECTS = 3;
+  let currentUrl = target;
   let response;
-  try {
-    response = await fetchImpl(target, {
-      signal: controller.signal,
-      headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml" },
-      redirect: "follow",
-    });
-  } finally {
-    clearTimeout(timer);
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      response = await fetchImpl(currentUrl, {
+        signal: controller.signal,
+        headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml" },
+        redirect: "manual",
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) throw new Error("重定向缺少 Location 头");
+      const next = new URL(location, currentUrl);
+      if (next.protocol !== "http:" && next.protocol !== "https:") throw new Error("重定向目标不是 http/https");
+      if (isPrivateHost(next.hostname)) throw new Error("重定向目标是内网或本机地址");
+      currentUrl = next.href;
+      continue;
+    }
+    break;
   }
+  if (!response) throw new Error("重定向次数超限");
   if (!response.ok) throw new Error(`网页请求失败（HTTP ${response.status}）`);
 
   const contentType = String(response.headers.get("content-type") || "").toLowerCase();

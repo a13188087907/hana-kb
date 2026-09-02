@@ -9,7 +9,7 @@ const DEFAULT_FEATURES = Object.freeze({ graphEnabled: false, bm25Enabled: false
 const LIBRARY_METADATA_KEY = "libraryMetadata";
 const DEFAULT_LIBRARY_CONFIG = Object.freeze({
   topK: 15,
-  similarityThreshold: 0.5,
+  similarityThreshold: 0.3,
   chunkTargetLength: 400,
   chunkOverlap: 50,
 });
@@ -58,6 +58,7 @@ export function openDatabase(dataDir, libraryId) {
     migrateFts(db);
     ensureColumn(db, "documents", "graph_status", "TEXT NOT NULL DEFAULT 'pending'");
     ensureColumn(db, "documents", "graph_error", "TEXT");
+    ensureColumn(db, "entities", "graph_role", "TEXT NOT NULL DEFAULT 'keep'");
     db.exec("CREATE INDEX IF NOT EXISTS idx_documents_graph_status ON documents(graph_status)");
     ensureFeatureDefaults(db);
     db.prepare("UPDATE documents SET status='pending', updated_at=CURRENT_TIMESTAMP WHERE status='processing'").run();
@@ -267,7 +268,8 @@ CREATE TABLE IF NOT EXISTS entities (
   name TEXT NOT NULL UNIQUE,
   type TEXT,
   aliases_json TEXT NOT NULL DEFAULT '[]',
-  embedding BLOB
+  embedding BLOB,
+  graph_role TEXT NOT NULL DEFAULT 'keep'
 );
 CREATE TABLE IF NOT EXISTS relations (
   id INTEGER PRIMARY KEY,

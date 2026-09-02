@@ -615,7 +615,7 @@ function graphHealthHtml(stats, library) {
   else if (processing > 0) statusLine = `<p class="hint graph-busy">图谱构建中，正在抽取…（当前批次剩余 ${processing} 段）</p>`;
   else if (uncovered > 0) statusLine = `<p class="hint">${uncovered} 个片段未抽取图谱，点击下方“补建图谱”开始构建</p>`;
   else statusLine = `<p class="hint">图谱已完整构建</p>`;
-  return `<section class="health-summary"><div class="health-heading"><p class="eyebrow">GRAPH HEALTH</p><div class="health-actions"><button class="outline-button" data-action="rebuild-library">重建索引</button>${graphOn ? `<button class="outline-button" data-action="rebuild-graph" data-library-id="${escapeHtml(library?.id || "")}">补建图谱</button>` : ""}</div></div><div class="health-grid"><span><strong>${Number(stats.entities || 0)}</strong><small>实体</small></span><span><strong>${Number(stats.relations || 0)}</strong><small>关系</small></span><span><strong>${Number(stats.averageDegree || 0).toFixed(2)}</strong><small>平均度</small></span><span><strong>${(Number(stats.isolatedRatio || 0) * 100).toFixed(1)}%</strong><small>孤立率</small></span></div>${statusLine}</section>`;
+  return `<section class="health-summary"><div class="health-heading"><p class="eyebrow">GRAPH HEALTH</p><div class="health-actions"><button class="outline-button" data-action="rebuild-library">重建索引</button>${graphOn ? `<button class="outline-button" data-action="rebuild-graph" data-library-id="${escapeHtml(library?.id || "")}">补建图谱</button><button class="outline-button" data-action="clean-graph" data-library-id="${escapeHtml(library?.id || "")}">清洗实体</button>` : ""}</div></div><div class="health-grid"><span><strong>${Number(stats.entities || 0)}</strong><small>实体</small></span><span><strong>${Number(stats.relations || 0)}</strong><small>关系</small></span><span><strong>${Number(stats.averageDegree || 0).toFixed(2)}</strong><small>平均度</small></span><span><strong>${(Number(stats.isolatedRatio || 0) * 100).toFixed(1)}%</strong><small>孤立率</small></span></div>${statusLine}</section>`;
 }
 
 function mmrHintHtml(library) {
@@ -1118,15 +1118,16 @@ function bindEvents() {
   app.querySelectorAll('[data-action="toggle-chunk"]').forEach((card) => card.addEventListener("click", () => { state.expandedChunks = toggleExpanded(state.expandedChunks, card.dataset.chunkId); render(); }));
   app.querySelector('[data-action="graph-back-full"]')?.addEventListener("click", () => { state.graphMode = "full"; state.graph = null; state.graphCandidates = []; render(); });
   app.querySelector('[data-action="rebuild-graph"]')?.addEventListener("click", rebuildGraph);
-  app.querySelector('[data-action="clean-graph"]')?.addEventListener("click", async () => {
+  app.querySelectorAll('[data-action="clean-graph"]').forEach((btn) => btn.addEventListener("click", async () => {
+    const libId = btn.dataset.libraryId || state.libraryId;
     try {
-      const result = await request(`api/libraries/${encodeURIComponent(state.libraryId)}/graph-clean`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const result = await request(`api/libraries/${encodeURIComponent(libId)}/graph-clean`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       setMessage(`清洗完成：实体删 ${result.dropped}、降级拆边 ${result.weakened}；边 ${result.before.relations} → ${result.after.relations}`);
       state.fullGraph = null; state.graph = null;
       await loadFullGraph().catch(() => {});
       render();
     } catch (error) { setMessage(friendlyError(error)); render(); }
-  });
+  }));
   app.querySelectorAll(".graph-node").forEach((node) => node.addEventListener("click", () => loadGraphEntity(node.dataset.entityId)));
   initGraphEngine();
 }

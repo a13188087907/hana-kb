@@ -206,6 +206,29 @@ export default function registerWebuiRoutes(app, ctx) {
     }
   });
 
+  // 图谱清洗：删除垃圾实体、泛化枢纽拆边（纯数据库操作，立即生效）
+  app.post("/api/libraries/:libraryId/graph-clean", async (c) => {
+    try {
+      const runtime = getRuntime();
+      const db = runtime.manager.open(c.req.param("libraryId")).db;
+      const { cleanLibraryEntities } = await import("../core/entity-cleaner.js");
+      const { getLibraryConfig } = await import("../core/db.js");
+      const config = getLibraryConfig(db);
+      const before = {
+        entities: db.prepare("SELECT COUNT(*) c FROM entities").get().c,
+        relations: db.prepare("SELECT COUNT(*) c FROM relations").get().c,
+      };
+      const result = cleanLibraryEntities(db, { libraryGenericWords: config.genericEntities ?? [] });
+      const after = {
+        entities: db.prepare("SELECT COUNT(*) c FROM entities").get().c,
+        relations: db.prepare("SELECT COUNT(*) c FROM relations").get().c,
+      };
+      return c.json({ ok: true, ...result, before, after });
+    } catch (error) {
+      return c.json({ ok: false, error: error.message }, 400);
+    }
+  });
+
   app.post("/api/libraries/:libraryId/graph/rebuild", async (c) => {
     try {
       const body = await readJson(c);

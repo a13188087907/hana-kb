@@ -1,4 +1,6 @@
 ﻿import { getLlmConfig } from "./config.js";
+import { classifyEntity } from "./entity-cleaner.js";
+import { getLibraryConfig } from "./db.js";
 import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
 
@@ -396,15 +398,28 @@ export class GraphBuildService {
       aliases.delete(displayName);
       entityRows.push({ root, members, name: displayName, type: [...types][0] ?? "concept", aliases: [...aliases], chunks, embeddingText: [displayName, ...aliases].join(" ") });
     }
-    const embeddings = await this.embeddingClient.embed(entityRows.map((row) => row.embeddingText));
-    if (embeddings.length !== entityRows.length) throw new Error("entity embedding count mismatch");
+    // 实体清洗在 embed 之前（refine-loop 迭代规则）：drop 不写入不 embed；weak 写入实体（可精确匹配）但不建边
+    const libGeneric = getLibraryConfig(db).genericEntities ?? [];
+    const titlePathOf = (chunkIds) => {
+      const q = db.prepare("SELECT title_path AS p FROM chunks WHERE id=?");
+      return [...chunkIds].map((cid) => q.get(cid)?.p ?? "").filter(Boolean);
+    };
+    const entityAction = new Map();
+    const keptRows = [];
+    for (const row of entityRows) {
+      const r = classifyEntity(row.name, { titlePaths: titlePathOf(row.chunks), libraryGenericWords: libGeneric });
+      entityAction.set(row.root, r.action);
+      if (r.action !== "drop") keptRows.push(row);
+    }
+    const embeddings = await this.embeddingClient.embed(keptRows.map((row) => row.embeddingText));
+    if (embeddings.length !== keptRows.length) throw new Error("entity embedding count mismatch");
 
     db.transaction(() => {
       db.exec("DELETE FROM relations; DELETE FROM chunk_entities; DELETE FROM entities;");
       const insertEntity = db.prepare("INSERT INTO entities (name, type, aliases_json, embedding) VALUES (?, ?, ?, ?)");
       const insertChunkEntity = db.prepare("INSERT OR IGNORE INTO chunk_entities (chunk_id, entity_id) VALUES (?, ?)");
       const entityIds = new Map();
-      entityRows.forEach((row, index) => {
+      keptRows.forEach((row, index) => {
         const id = Number(insertEntity.run(row.name, row.type, JSON.stringify(row.aliases), float32Blob(embeddings[index])).lastInsertRowid);
         entityIds.set(row.root, id);
         for (const member of row.members) entityIds.set(member, id);
@@ -414,7 +429,10 @@ export class GraphBuildService {
       for (const relation of rawRelations) {
         const sourceId = entityIds.get(find(relation.source));
         const targetId = entityIds.get(find(relation.target));
-        if (sourceId && targetId && sourceId !== targetId) insertRelation.run(sourceId, relation.predicate, targetId, relation.chunkId);
+        // weak 实体不建边（泛化枢纽拆掉），drop 已不在 entityIds
+        if (!sourceId || !targetId || sourceId === targetId) continue;
+        if (entityAction.get(find(relation.source)) === "weak" || entityAction.get(find(relation.target)) === "weak") continue;
+        insertRelation.run(sourceId, relation.predicate, targetId, relation.chunkId);
       }
     })();
   }

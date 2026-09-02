@@ -31,6 +31,7 @@
       "./tools/kb-list.js",
       "./tools/kb-delete-doc.js",
       "./tools/kb-graph-build.js",
+      "./tools/kb-graph-clean.js",
       "./tools/kb-graph-stats.js",
       "./tools/kb-update-config.js",
       "./tools/kb-delete-library.js",

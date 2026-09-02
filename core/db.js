@@ -105,6 +105,7 @@ export function markLibraryRebuildComplete(db) {
 export function getLibraryConfig(db) {
   const search = readConfigJson(db, "search");
   const chunking = readConfigJson(db, "chunking");
+  const graph = readConfigJson(db, "graph");
   const features = getLibraryFeatures(db);
   const chunkTargetLength = normalizeInteger(chunking.chunkTargetLength, DEFAULT_LIBRARY_CONFIG.chunkTargetLength, 50, 10000);
   return {
@@ -113,6 +114,8 @@ export function getLibraryConfig(db) {
     chunkTargetLength,
     chunkOverlap: normalizeInteger(chunking.chunkOverlap, Math.min(DEFAULT_LIBRARY_CONFIG.chunkOverlap, chunkTargetLength - 1), 0, chunkTargetLength - 1),
     chunkingCustomized: Object.keys(chunking).length > 0, // 用户是否显式配置过分块（默认走 chunker 内置喘息空间）
+    // 库级泛化词表：领域相关的泛化指代（如医疗库的"护士/患者"），降级不建边
+    genericEntities: Array.isArray(graph.genericEntities) ? graph.genericEntities.map((x) => String(x).trim()).filter(Boolean) : [],
     ...features,
   };
 }
@@ -152,6 +155,12 @@ export function setLibraryConfig(db, patch = {}) {
     .run(JSON.stringify({ topK: next.topK, similarityThreshold: next.similarityThreshold }));
   db.prepare("INSERT INTO config (key, value) VALUES ('chunking', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
     .run(JSON.stringify({ chunkTargetLength: next.chunkTargetLength, chunkOverlap: next.chunkOverlap }));
+  if (patch.genericEntities !== undefined) {
+    const graphPatch = patch.graph && typeof patch.graph === "object" ? patch.graph : {};
+    const list = Array.isArray(patch.genericEntities) ? patch.genericEntities : (Array.isArray(graphPatch.genericEntities) ? graphPatch.genericEntities : []);
+    db.prepare("INSERT INTO config (key, value) VALUES ('graph', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run(JSON.stringify({ ...readConfigJson(db, "graph"), genericEntities: list.map((x) => String(x).trim()).filter(Boolean) }));
+  }
   return {
     config: getLibraryConfig(db),
     requiresRebuild,

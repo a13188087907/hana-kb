@@ -588,7 +588,7 @@ function graphView() {
     : (state.fullGraph?.nodes?.length
       ? `<div class="graph-meta"><span class="hint">全景视图：悬停节点高亮其连线，拖动节点可整理布局，点击进入局部展开；滚轮缩放、拖拽平移、双击复位</span>${state.fullGraph.truncated ? `<span class="mono">（超上限截断展示）</span>` : ""}</div>${graphMount()}`
       : `<div class="graph-empty">${state.fullGraph ? "图谱还没有实体。" : "图谱数据加载中…"}</div>`);
-  return `<section class="graph-view">${graphStatusBar(stats, library)}<form id="graph-search-form" class="graph-search"><label>搜索实体<input name="entity" required placeholder="输入实体名，查看它的一跳关系"></label><button class="primary-button" type="submit">搜索实体</button><button class="outline-button" type="button" data-action="rebuild-graph">补建图谱</button></form>${candidateHtml}<div class="graph-stage">${graphContent}</div></section>`;
+  return `<section class="graph-view">${graphStatusBar(stats, library)}<form id="graph-search-form" class="graph-search"><label>搜索实体<input name="entity" required placeholder="输入实体名，查看它的一跳关系"></label><button class="primary-button" type="submit">搜索实体</button><button class="outline-button" type="button" data-action="rebuild-graph">补建图谱</button><button class="outline-button" type="button" data-action="clean-graph">清洗实体</button></form>${candidateHtml}<div class="graph-stage">${graphContent}</div></section>`;
 }
 
 function renderSearchDrawer() {
@@ -1118,6 +1118,15 @@ function bindEvents() {
   app.querySelectorAll('[data-action="toggle-chunk"]').forEach((card) => card.addEventListener("click", () => { state.expandedChunks = toggleExpanded(state.expandedChunks, card.dataset.chunkId); render(); }));
   app.querySelector('[data-action="graph-back-full"]')?.addEventListener("click", () => { state.graphMode = "full"; state.graph = null; state.graphCandidates = []; render(); });
   app.querySelector('[data-action="rebuild-graph"]')?.addEventListener("click", rebuildGraph);
+  app.querySelector('[data-action="clean-graph"]')?.addEventListener("click", async () => {
+    try {
+      const result = await request(`api/libraries/${encodeURIComponent(state.libraryId)}/graph-clean`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      setMessage(`清洗完成：实体删 ${result.dropped}、降级拆边 ${result.weakened}；边 ${result.before.relations} → ${result.after.relations}`);
+      state.fullGraph = null; state.graph = null;
+      await loadFullGraph().catch(() => {});
+      render();
+    } catch (error) { setMessage(friendlyError(error)); render(); }
+  });
   app.querySelectorAll(".graph-node").forEach((node) => node.addEventListener("click", () => loadGraphEntity(node.dataset.entityId)));
   initGraphEngine();
 }

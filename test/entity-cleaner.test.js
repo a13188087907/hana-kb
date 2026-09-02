@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classifyEntity, cleanLibraryEntities, GENERIC_WORDS } from "../core/entity-cleaner.js";
 
-test("classifyEntity: 编号删除", () => {
-  assert.equal(classifyEntity("NU-MP-01-046").action, "drop");
-  assert.equal(classifyEntity("NU-MP-02-042-05 血栓评估表").action, "drop");
+test("classifyEntity: 编号降级不删除（检索锚点）", () => {
+  assert.equal(classifyEntity("NU-MP-01-046").action, "weak");
+  assert.equal(classifyEntity("NU-MP-02-042-05 血栓评估表").action, "weak");
   // 模型版本号不误伤
   assert.equal(classifyEntity("GPT-4.5").action, "keep");
 });

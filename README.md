@@ -1,4 +1,4 @@
-# hana-kb
+﻿# hana-kb
 
 Hana 的本地知识库插件。把文件丢进库，对话中自然提问，相关内容被找出并附带来源出处。数据留在本机，检索链路全部透明可溯。
 
@@ -102,7 +102,7 @@ npm install
 
 ## 对话工具
 
-`kb-create`、`kb-list`、`kb-ingest`、`kb-search`、`kb-delete-doc`、`kb-delete-library`、`kb-doc-list`、`kb-update-config`、`kb-rebuild-library`、`kb-graph-build`、`kb-graph-stats`、`kb-graph-data`
+`kb-create`、`kb-list`、`kb-ingest`、`kb-add-url`、`kb-search`、`kb-delete-doc`、`kb-delete-library`、`kb-doc-list`、`kb-update-config`、`kb-rebuild-library`、`kb-graph-build`、`kb-graph-clean`、`kb-graph-stats`、`kb-graph-data`
 
 ## 数据与隐私
 
@@ -136,3 +136,4 @@ npm run selftest   # 真实 API 全链路自测
 
 - 1.4：pdf 支持（中文乱码专项验证）、费用熔断、资源访问改造（ctx.resources 通道）、检索置信阈值按真实分布校准
 - 后续：社区摘要页（GraphRAG 式全局问答）、Contextual Embedding（LLM 上下文前缀）、rerank 精排、图谱实体合并 UI、查询改写（日期等精确词格式归一）
+

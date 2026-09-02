@@ -17,7 +17,7 @@ const GENERIC_PATTERN = /^各[一个]?(护理单元|科室|部门|单位|病区|
 
 // 判定一个实体（name + 其出现块的标题路径）的处置
 export function classifyEntity(name, { titlePaths = [], libraryGenericWords = [] } = {}) {
-  if (DOC_NO.test(name)) return { action: "drop", rule: "R2 编号" };
+  if (DOC_NO.test(name)) return { action: "weak", rule: "R2 编号降级" }; // 编号是检索锚点（用户会直接查 NU-MP-01-012），保留实体但不建边
   if (BROKEN.test(name) || name.length > 20) return { action: "drop", rule: "R4 边界崩坏" };
   if (TABLE_CELL.test(name)) return { action: "drop", rule: "R6 表格碎片" };
   if (CN_PERSON_NAME.test(name) && titlePaths.length > 0 && titlePaths.every((p) => METADATA_PATH.test(p))) {

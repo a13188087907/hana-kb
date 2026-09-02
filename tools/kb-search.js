@@ -1,7 +1,9 @@
-import { getRuntime, textResult } from "./common.js";
+﻿import { getRuntime, textResult } from "./common.js";
 
-// 置信提示阈值：基于真实库实测分布（真实查询 top1 普遍 ≥0.56，无答案题误召 0.57-0.71 存在重叠），
-// 只做提醒不做硬拒绝——最终措辞交给 Agent 判断
+// 相关性提示阈值：基于真实库实测分布（真实查询 top1 普遍 ≥0.56，无答案题误召 0.57-0.71 存在重叠），
+// 只做提醒不做硬拒绝——最终措辞交给 Agent 判断。
+// 注意：这是「向量相关性提示」而非概率置信度——BM25/图谱路没有可比分数，不同 embedding 模型分布不同，
+// 分档仅基于向量 top1 相似度，不使用“置信度”措辞。
 const CONFIDENCE_LOW = 0.45;
 const CONFIDENCE_MID = 0.60;
 
@@ -34,9 +36,9 @@ export async function execute(input) {
   if (!results.length) {
     notice = "注意：未检索到任何内容。请明确告知用户该知识库中没有找到相关信息，不要编造答案。";
   } else if (top1 != null && top1 < CONFIDENCE_LOW) {
-    notice = `注意：检索结果相关性很低（最高相似度 ${top1.toFixed(2)}），该问题的答案很可能不在此知识库中。请明确告知用户未找到可靠内容，不要基于以下片段编造答案。`;
+    notice = `注意：检索结果的向量相关性很低（最高相似度 ${top1.toFixed(2)}），该问题的答案很可能不在此知识库中。请明确告知用户未找到可靠内容，不要基于以下片段编造答案。`;
   } else if (top1 != null && top1 < CONFIDENCE_MID) {
-    notice = `提示：检索结果相关性偏低（最高相似度 ${top1.toFixed(2)}），回答时请向用户说明不确定性，不要过度发挥。`;
+    notice = `提示：检索结果的向量相关性偏低（最高相似度 ${top1.toFixed(2)}），回答时请向用户说明不确定性，不要过度发挥。`;
   }
   return textResult(notice ? `${notice}\n\n${text}` : text, { libraryId, query: input?.query, results, confidence: top1 == null ? "unknown" : top1 < CONFIDENCE_LOW ? "low" : top1 < CONFIDENCE_MID ? "medium" : "high" });
 }
@@ -44,3 +46,4 @@ export async function execute(input) {
 function sourceLabel(source) {
   return ({ vector: "向量", bm25: "BM25", rrf: "向量+BM25", graph: "图谱追加" })[source] || source || "向量";
 }
+

@@ -135,8 +135,9 @@ npm run selftest   # 真实 API 全链路自测
 ## Roadmap
 
 - 1.4 已发布：PDF 入库、实体清洗层（垃圾实体删除+泛化枢纽拆边）、索引指纹（换 embedding 模型拦截）、网页抓取 SSRF 防护加固、上传路径安全
-- 1.5：PPR 图谱检索（借鉴 Yuxi：三级种子权重+子图 Personalized PageRank 排序 chunk）、费用熔断、资源访问改造（ctx.resources 通道）、网页手动刷新、检索回归集
+- 1.5：费用熔断、资源访问改造（ctx.resources 通道）、网页手动刷新、检索回归集
 - 后续：社区摘要页（GraphRAG 式全局问答）、Contextual Embedding（LLM 上下文前缀）、rerank 精排、图谱实体合并 UI、查询改写（日期等精确词格式归一）
+
 
 
 
